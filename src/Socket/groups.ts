@@ -162,7 +162,6 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 			setCachedGroupMetadata(meta.id, meta)
 		}
 
-		// TODO: properly parse LID / PN DATA
 		sock.ev.emit('groups.update', Object.values(data))
 
 		return data
@@ -299,12 +298,6 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 			return result?.attrs.jid
 		},
 
-		/**
-		 * revoke a v4 invite for someone
-		 * @param groupJid group jid
-		 * @param invitedJid jid of person you invited
-		 * @returns true if successful
-		 */
 		groupRevokeInviteV4: async (groupJid: string, invitedJid: string) => {
 			const result = await groupQuery(groupJid, 'set', [
 				{ tag: 'revoke', attrs: {}, content: [{ tag: 'participant', attrs: { jid: invitedJid } }] }
@@ -312,11 +305,6 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 			return !!result
 		},
 
-		/**
-		 * accept a GroupInviteMessage
-		 * @param key the key of the invite message, or optionally only provide the jid of the person who sent the invite
-		 * @param inviteMessage the message to accept
-		 */
 		groupAcceptInviteV4: ev.createBufferedFunction(
 			async (key: string | WAMessageKey, inviteMessage: proto.Message.IGroupInviteMessage) => {
 				key = typeof key === 'string' ? { remoteJid: key } : key
@@ -331,10 +319,9 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 					}
 				])
 
-				// if we have the full message key
-				// update the invite message to be expired
+				
 				if (key.id) {
-					// create new invite message that is expired
+					
 					inviteMessage = proto.Message.GroupInviteMessage.fromObject(inviteMessage)
 					inviteMessage.inviteExpiration = 0
 					inviteMessage.inviteCode = ''
@@ -350,7 +337,6 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 					])
 				}
 
-				// generate the group add message
 				await upsertMessage(
 					{
 						key: {
@@ -410,6 +396,7 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 			}
 
 			const botJid = authState.creds.me?.id
+			const botLid = authState.creds.me?.lid
 			const meta = await groupMetadata(groupJid).catch(() => undefined)
 			if (!meta || !Array.isArray(meta.participants)) {
 				return { isAdmin: false, isBotAdmin: false }
@@ -417,20 +404,29 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 
 			const senderNorm = normalizeJid(senderJid)
 			const botNorm = normalizeJid(botJid)
+			const botLidNorm = normalizeJid(botLid)
 
-			const isAdminIn = (norm: string | null) =>
-				norm !== null &&
-				meta.participants.some(p => {
-					const pid = normalizeJid(p.id ?? p.phoneNumber ?? p.lid)
-					return pid === norm && (p.admin === 'admin' || p.admin === 'superadmin')
+			const isAdminIn = (...norms: Array<string | null>) => {
+				const targets = norms.filter((n): n is string => n !== null)
+				if (targets.length === 0) {
+					return false
+				}
+
+				return meta.participants.some(p => {
+					const candidates = [normalizeJid(p.id), normalizeJid(p.phoneNumber), normalizeJid(p.lid)].filter(
+						(c): c is string => c !== null
+					)
+					const isMatch = candidates.some(c => targets.includes(c))
+					return isMatch && (p.admin === 'admin' || p.admin === 'superadmin')
 				})
+			}
 
 			const isAdmin = isAdminIn(senderNorm)
-			let isBotAdmin = isAdminIn(botNorm)
+			let isBotAdmin = isAdminIn(botNorm, botLidNorm)
 
-			if (!isBotAdmin && botNorm) {
+			if (!isBotAdmin && (botNorm || botLidNorm)) {
 				const owners = [meta.owner, meta.ownerPn].filter(Boolean).map(normalizeJid)
-				if (owners.includes(botNorm)) {
+				if ((botNorm && owners.includes(botNorm)) || (botLidNorm && owners.includes(botLidNorm))) {
 					isBotAdmin = true
 				}
 			}
@@ -443,7 +439,7 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 export const extractGroupMetadata = (result: BinaryNode) => {
 	const group = getBinaryNodeChild(result, 'group')
 	if (!group) {
-		// Mirror WAWeb: surface server/client errors with their code+text instead of crashing.
+		
 		const errorNode = getBinaryNodeChild(result, 'error')
 		if (errorNode) {
 			const code = errorNode.attrs.code ? +errorNode.attrs.code : 500
@@ -506,7 +502,7 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 		joinApprovalMode: !!getBinaryNodeChild(group, 'membership_approval_mode'),
 		memberAddMode,
 		participants: getBinaryNodeChildren(group, 'participant').map(({ attrs }) => {
-			// TODO: Store LID MAPPINGS
+			
 			return {
 				id: attrs.jid!,
 				phoneNumber: isLidUser(attrs.jid) && isPnUser(attrs.phone_number) ? attrs.phone_number : undefined,
@@ -521,3 +517,4 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 }
 
 export type GroupsSocket = ReturnType<typeof makeGroupsSocket>
+		
