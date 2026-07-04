@@ -28,6 +28,7 @@ export type ConnectionState = {
 	isNewLogin?: boolean
 	/** the current QR code */
 	qr?: string
+	passkeyRequired?: { hasSigner: boolean }
 	/** has the device received all pending notifications while it was offline */
 	receivedPendingNotifications?: boolean
 	/** legacy connection options */
