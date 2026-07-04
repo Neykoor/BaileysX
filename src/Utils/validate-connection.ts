@@ -85,7 +85,7 @@ export const generateLoginNode = (userJid: string, config: SocketConfig): proto.
 	return proto.ClientPayload.fromObject(payload)
 }
 
-const getPlatformType = (platform: string): proto.DeviceProps.PlatformType => {
+export const getPlatformType = (platform: string): proto.DeviceProps.PlatformType => {
 	const platformType = platform.toUpperCase()
 	if (platformType === 'ANDROID') {
 		return proto.DeviceProps.PlatformType.ANDROID_PHONE
@@ -262,4 +262,4 @@ export const encodeSignedDeviceIdentity = (account: proto.IADVSignedDeviceIdenti
 	}
 
 	return proto.ADVSignedDeviceIdentity.encode(account).finish()
-}
+			}
