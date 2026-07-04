@@ -1,6 +1,7 @@
 import type { BaileysEventEmitter } from '../Types/Events'
 import type { WAMessage } from '../Types/Message'
 import type { AnyMessageContent, MiscMessageGenerationOptions } from '../Types/Message'
+import type { ILogger } from './logger'
 
 export type MiddlewareContext = {
 	jid: string
@@ -22,7 +23,11 @@ export type MinimalMiddlewareSocket = {
 	ev: BaileysEventEmitter
 }
 
-export const makeMiddlewareStack = (sock: MinimalMiddlewareSocket) => {
+export type MiddlewareStackOptions = {
+	logger?: ILogger
+}
+
+export const makeMiddlewareStack = (sock: MinimalMiddlewareSocket, opts: MiddlewareStackOptions = {}) => {
 	const incoming: Middleware[] = []
 	const outgoing: OutgoingMiddleware[] = []
 
@@ -67,7 +72,14 @@ export const makeMiddlewareStack = (sock: MinimalMiddlewareSocket) => {
 			}
 
 			for (const mw of incoming) {
-				await mw(ctx)
+				try {
+					await mw(ctx)
+				} catch (err) {
+					// A misbehaving middleware must not stop the rest of the chain from
+					// running, or crash the process via an unhandled rejection.
+					opts.logger?.error({ err, jid: rawJid }, 'middleware threw, continuing chain')
+				}
+
 				if (stopped) {
 					break
 				}
@@ -78,7 +90,11 @@ export const makeMiddlewareStack = (sock: MinimalMiddlewareSocket) => {
 	const runOutgoing = async (jid: string, content: AnyMessageContent, options?: MiscMessageGenerationOptions) => {
 		const ctx: OutgoingMiddlewareContext = { jid, content, options }
 		for (const mw of outgoing) {
-			await mw(ctx)
+			try {
+				await mw(ctx)
+			} catch (err) {
+				opts.logger?.error({ err, jid }, 'outgoing middleware threw, continuing chain')
+			}
 		}
 
 		return ctx
