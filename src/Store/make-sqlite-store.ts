@@ -88,10 +88,17 @@ export async function makeSqliteStore(opts: SqliteStoreOptions) {
 			'INSERT INTO messages (jid, msg_id, ts, value) VALUES (?, ?, ?, ?) ON CONFLICT(jid, msg_id) DO UPDATE SET value = excluded.value, ts = excluded.ts'
 		),
 		msgGet: db.prepare<[string, string], { value: string }>('SELECT value FROM messages WHERE jid = ? AND msg_id = ?'),
+		msgGetTs: db.prepare<[string, string], { ts: number }>('SELECT ts FROM messages WHERE jid = ? AND msg_id = ?'),
 		msgDelete: db.prepare<[string, string]>('DELETE FROM messages WHERE jid = ? AND msg_id = ?'),
 		msgClearJid: db.prepare<[string]>('DELETE FROM messages WHERE jid = ?'),
 		msgPage: db.prepare<[string, number], { value: string }>(
 			'SELECT value FROM messages WHERE jid = ? ORDER BY ts DESC LIMIT ?'
+		),
+		msgPageBefore: db.prepare<[string, number, number], { value: string }>(
+			'SELECT value FROM messages WHERE jid = ? AND ts < ? ORDER BY ts DESC LIMIT ?'
+		),
+		msgPageAfter: db.prepare<[string, number, number], { value: string }>(
+			'SELECT value FROM messages WHERE jid = ? AND ts > ? ORDER BY ts ASC LIMIT ?'
 		),
 		msgLatest: db.prepare<[string], { value: string }>(
 			'SELECT value FROM messages WHERE jid = ? ORDER BY ts DESC LIMIT 1'
@@ -270,23 +277,44 @@ export async function makeSqliteStore(opts: SqliteStoreOptions) {
 				return row ? fromJson<WAMessage>(row.value) : undefined
 			}
 		},
+		// Paginates using the message's `ts` as a cursor via a fresh SQL query,
+		// instead of re-fetching the same fixed first page and slicing it. The
+		// previous approach meant any page beyond the first `count` messages of
+		// a chat's history was unreachable.
 		loadMessages: async (
 			jid: string,
 			count: number,
 			cursor?: { before: WAMessageKey | undefined } | { after: WAMessageKey | undefined }
 		): Promise<WAMessage[]> => {
-			const page = stmts.msgPage.all(jidNormalizedUser(jid), count).map((r: { value: string }) => fromJson<WAMessage>(r.value))
+			const normalizedJid = jidNormalizedUser(jid)
+
 			if (!cursor) {
-				return page
+				return stmts.msgPage.all(normalizedJid, count).map((r: { value: string }) => fromJson<WAMessage>(r.value))
 			}
 
 			const cursorKey = 'before' in cursor ? cursor.before : cursor.after
 			if (!cursorKey?.id) {
-				return page
+				return stmts.msgPage.all(normalizedJid, count).map((r: { value: string }) => fromJson<WAMessage>(r.value))
 			}
 
-			const idx = page.findIndex((m: WAMessage) => m.key.id === cursorKey.id)
-			return idx >= 0 ? page.slice(idx + 1) : page
+			const cursorRow = stmts.msgGetTs.get(normalizedJid, cursorKey.id)
+			if (!cursorRow) {
+				return stmts.msgPage.all(normalizedJid, count).map((r: { value: string }) => fromJson<WAMessage>(r.value))
+			}
+
+			if ('before' in cursor) {
+				return stmts.msgPageBefore
+					.all(normalizedJid, cursorRow.ts, count)
+					.map((r: { value: string }) => fromJson<WAMessage>(r.value))
+			}
+
+			// 'after' pages are fetched oldest-first so LIMIT keeps the messages
+			// closest to the cursor, then reversed to match the newest-first order
+			// used everywhere else in this store.
+			return stmts.msgPageAfter
+				.all(normalizedJid, cursorRow.ts, count)
+				.map((r: { value: string }) => fromJson<WAMessage>(r.value))
+				.reverse()
 		},
 		close: () => {
 			db.close()
@@ -295,3 +323,4 @@ export async function makeSqliteStore(opts: SqliteStoreOptions) {
 }
 
 export type SqliteStore = Awaited<ReturnType<typeof makeSqliteStore>>
+				
