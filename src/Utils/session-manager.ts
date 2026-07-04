@@ -15,10 +15,22 @@ export type SessionManagerOptions = {
 	config?: Omit<Partial<UserFacingSocketConfig>, 'auth'>
 }
 
+const SAFE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/
+
+const assertSafeId = (id: string): void => {
+	if (!id || !SAFE_ID_PATTERN.test(id)) {
+		throw new Error(
+			`invalid session id "${id}": only alphanumeric characters, "-" and "_" are allowed (no path separators or traversal sequences)`
+		)
+	}
+}
+
 export const makeSessionManager = (opts: SessionManagerOptions) => {
 	const sessions = new Map<string, SessionEntry>()
 
 	const start = async (id: string, overrideConfig?: Omit<Partial<UserFacingSocketConfig>, 'auth'>) => {
+		assertSafeId(id)
+
 		const existing = sessions.get(id)
 		if (existing) {
 			return existing
