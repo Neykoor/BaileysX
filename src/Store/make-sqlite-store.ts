@@ -9,7 +9,7 @@ import { BufferJSON } from '../Utils/generics.js'
 
 import type DatabaseCtor from 'better-sqlite3'
 
-type SqliteDatabase = InstanceType<typeof DatabaseCtor>
+export type SqliteDatabase = InstanceType<typeof DatabaseCtor>
 
 export type SqliteStoreOptions =
 	| {
@@ -18,6 +18,33 @@ export type SqliteStoreOptions =
 	| {
 			database: SqliteDatabase
 	  }
+
+export interface SqliteStoreApi {
+	db: SqliteDatabase
+	bind: (ev: BaileysEventEmitter) => void
+	chats: {
+		get: (id: string) => Chat | undefined
+		all: () => Chat[]
+	}
+	contacts: {
+		get: (id: string) => Contact | undefined
+		all: () => Contact[]
+	}
+	groupMetadata: {
+		get: (id: string) => GroupMetadata | undefined
+	}
+	messages: {
+		get: (jid: string, id: string) => WAMessage | undefined
+		page: (jid: string, limit?: number) => WAMessage[]
+		mostRecent: (jid: string) => WAMessage | undefined
+	}
+	loadMessages: (
+		jid: string,
+		count: number,
+		cursor?: { before: WAMessageKey | undefined } | { after: WAMessageKey | undefined }
+	) => Promise<WAMessage[]>
+	close: () => void
+}
 
 async function loadBetterSqlite3(): Promise<typeof DatabaseCtor> {
 	try {
@@ -55,7 +82,7 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS messages_jid_ts_idx ON messages(jid, ts);
 `
 
-export async function makeSqliteStore(opts: SqliteStoreOptions) {
+export async function makeSqliteStore(opts: SqliteStoreOptions): Promise<SqliteStoreApi> {
 	let db: SqliteDatabase
 	if ('database' in opts) {
 		db = opts.database
@@ -111,6 +138,10 @@ export async function makeSqliteStore(opts: SqliteStoreOptions) {
 	const upsertChats = (chats: Chat[]) => {
 		const tx = db.transaction((items: Chat[]) => {
 			for (const chat of items) {
+				if (!chat.id) {
+					continue
+				}
+
 				stmts.chatUpsert.run(chat.id, toJson(chat))
 			}
 		})
@@ -120,6 +151,10 @@ export async function makeSqliteStore(opts: SqliteStoreOptions) {
 	const upsertContacts = (contacts: Contact[]) => {
 		const tx = db.transaction((items: Contact[]) => {
 			for (const contact of items) {
+				if (!contact.id) {
+					continue
+				}
+
 				stmts.contactUpsert.run(contact.id, toJson(contact))
 			}
 		})
@@ -277,10 +312,6 @@ export async function makeSqliteStore(opts: SqliteStoreOptions) {
 				return row ? fromJson<WAMessage>(row.value) : undefined
 			}
 		},
-		// Paginates using the message's `ts` as a cursor via a fresh SQL query,
-		// instead of re-fetching the same fixed first page and slicing it. The
-		// previous approach meant any page beyond the first `count` messages of
-		// a chat's history was unreachable.
 		loadMessages: async (
 			jid: string,
 			count: number,
@@ -308,9 +339,6 @@ export async function makeSqliteStore(opts: SqliteStoreOptions) {
 					.map((r: { value: string }) => fromJson<WAMessage>(r.value))
 			}
 
-			// 'after' pages are fetched oldest-first so LIMIT keeps the messages
-			// closest to the cursor, then reversed to match the newest-first order
-			// used everywhere else in this store.
 			return stmts.msgPageAfter
 				.all(normalizedJid, cursorRow.ts, count)
 				.map((r: { value: string }) => fromJson<WAMessage>(r.value))
@@ -323,4 +351,4 @@ export async function makeSqliteStore(opts: SqliteStoreOptions) {
 }
 
 export type SqliteStore = Awaited<ReturnType<typeof makeSqliteStore>>
-				
+		
