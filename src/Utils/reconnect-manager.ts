@@ -1,6 +1,6 @@
 import { Boom } from '@hapi/boom'
 import makeWASocket from '../Socket/index.js'
-import type { UserFacingSocketConfig } from '../Types'
+import { DisconnectReason, type UserFacingSocketConfig } from '../Types'
 import type { ILogger } from './logger'
 
 type WASocket = ReturnType<typeof makeWASocket>
@@ -12,6 +12,7 @@ export type ReconnectOptions = {
 	maxDelayMs?: number
 	maxAttempts?: number
 	onSocket?: (sock: WASocket) => void
+	onMaxAttemptsReached?: () => void
 	logger?: ILogger
 }
 
@@ -55,6 +56,14 @@ export const makeResilientSocket = (opts: ReconnectOptions) => {
 
 				if (opts.maxAttempts !== undefined && attempt >= opts.maxAttempts) {
 					opts.logger?.error({ attempt }, 'max reconnect attempts reached')
+					opts.onMaxAttemptsReached?.()
+					return
+				}
+
+					if (statusCode === DisconnectReason.restartRequired) {
+					attempt = 0
+					opts.logger?.info({ statusCode }, 'restart required, reconnecting immediately')
+					connect()
 					return
 				}
 
