@@ -262,4 +262,5 @@ export const encodeSignedDeviceIdentity = (account: proto.IADVSignedDeviceIdenti
 	}
 
 	return proto.ADVSignedDeviceIdentity.encode(account).finish()
-			}
+}
+	
