@@ -1,3 +1,4 @@
+import { Boom } from '@hapi/boom'
 import { randomBytes } from 'crypto'
 import { proto } from '../../WAProto/index.js'
 import type { AuthenticationCreds } from '../Types'
@@ -73,7 +74,7 @@ export const makeShortcakeFlow = (opts: ShortcakeFlowOptions) => {
 		const response = await opts.query(mdIq('get', [{ tag: 'passkey_request_options', attrs: {} }]))
 		const options = getBinaryNodeChildBuffer(response, 'passkey_request_options')
 		if (!options) {
-			throw new Error('shortcake: get-passkey-request-options response missing options')
+			throw new Boom('shortcake: get-passkey-request-options response missing options', { statusCode: 400 })
 		}
 
 		return options
@@ -83,7 +84,7 @@ export const makeShortcakeFlow = (opts: ShortcakeFlowOptions) => {
 		const response = await opts.query(mdIq('get', [{ tag: 'ref', attrs: {} }]))
 		const ref = getBinaryNodeChildString(response, 'ref')
 		if (!ref) {
-			throw new Error('shortcake: get-ref response missing ref')
+			throw new Boom('shortcake: get-ref response missing ref', { statusCode: 400 })
 		}
 
 		return ref
@@ -237,3 +238,4 @@ export const makeShortcakeFlow = (opts: ShortcakeFlowOptions) => {
 }
 
 export type ShortcakeFlow = ReturnType<typeof makeShortcakeFlow>
+			
