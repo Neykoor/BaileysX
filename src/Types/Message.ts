@@ -61,18 +61,12 @@ export type MessageWithContextInfo =
 	| 'call'
 	| 'contactsArrayMessage'
 	| 'liveLocationMessage'
-	| 'templateMessage'
 	| 'stickerMessage'
 	| 'groupInviteMessage'
-	| 'templateButtonReplyMessage'
 	| 'productMessage'
 	| 'listMessage'
 	| 'orderMessage'
 	| 'listResponseMessage'
-	| 'buttonsMessage'
-	| 'buttonsResponseMessage'
-	| 'interactiveMessage'
-	| 'interactiveResponseMessage'
 	| 'pollCreationMessage'
 	| 'requestPhoneNumberMessage'
 	| 'messageHistoryBundle'
@@ -219,12 +213,6 @@ export type AnyMediaMessageContent = (
 		albumParentKey?: WAMessageKey
 	}
 
-export type ButtonReplyInfo = {
-	displayText: string
-	id: string
-	index: number
-}
-
 export type GroupInviteInfo = {
 	inviteCode: string
 	inviteExpiration: number
@@ -265,10 +253,6 @@ export type AnyRegularMessageContent = (
 			location: WALocationMessage
 	  }
 	| { react: proto.Message.IReactionMessage }
-	| {
-			buttonReply: ButtonReplyInfo
-			type: 'template' | 'plain'
-	  }
 	| {
 			groupInvite: GroupInviteInfo
 	  }
@@ -427,4 +411,5 @@ export type MediaDecryptionKeyInfo = {
 }
 
 export type MinimalMessage = Pick<WAMessage, 'key' | 'messageTimestamp'>
+
 	
