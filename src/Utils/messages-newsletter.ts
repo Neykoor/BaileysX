@@ -9,9 +9,6 @@ export interface NewsletterSendCapableSocket {
 	newsletterReactMessage: (jid: string, serverId: string, reaction?: string) => Promise<void>
 }
 
-export type NewsletterButtonInput = { id?: string; text?: string; displayText?: string }
-export type NewsletterListSection = { title?: string; rows?: Array<{ id?: string; rowId?: string; title?: string; description?: string }> }
-
 export function makeNewsletterUtils(conn: NewsletterSendCapableSocket) {
 	async function send(jid: string, content: AnyMessageContent, options: MiscMessageGenerationOptions = {}) {
 		return conn.sendMessage(nl(jid), content, options)
@@ -74,91 +71,6 @@ export function makeNewsletterUtils(conn: NewsletterSendCapableSocket) {
 		return send(jid, { sticker, isAnimated: options.isAnimated } as unknown as AnyMessageContent, options)
 	}
 
-	async function sendNewsletterButtons(
-		jid: string,
-		params: { body?: string; buttons?: NewsletterButtonInput[]; title?: string; footer?: string },
-		options: MiscMessageGenerationOptions = {}
-	) {
-		const { body, buttons = [], title, footer } = params
-		const nativeButtons = buttons.map(b => ({
-			name: 'quick_reply',
-			buttonParamsJson: JSON.stringify({ display_text: b.text || b.displayText || '', id: b.id || b.text || '' })
-		}))
-
-		const interactiveMessage = {
-			nativeFlowMessage: { buttons: nativeButtons, messageParamsJson: '', messageVersion: 1 },
-			body: { text: body || '' },
-			...(footer ? { footer: { text: footer } } : {}),
-			...(title ? { header: { title, hasMediaAttachment: false, subtitle: '' } } : {})
-		}
-
-		return send(jid, { interactiveMessage } as unknown as AnyMessageContent, options)
-	}
-
-	async function sendNewsletterList(
-		jid: string,
-		params: { body?: string; buttonText?: string; sections?: NewsletterListSection[]; title?: string; footer?: string },
-		options: MiscMessageGenerationOptions = {}
-	) {
-		const { body, buttonText, sections = [], title, footer } = params
-
-		const interactiveMessage = {
-			nativeFlowMessage: {
-				buttons: [
-					{
-						name: 'single_select',
-						buttonParamsJson: JSON.stringify({
-							title: buttonText || 'Select',
-							sections: sections.map(sec => ({
-								title: sec.title || '',
-								highlight_label: '',
-								rows: (sec.rows || []).map(row => ({
-									header: '',
-									title: row.title || '',
-									description: row.description || '',
-									id: row.id || row.rowId || row.title || ''
-								}))
-							}))
-						})
-					}
-				],
-				messageParamsJson: '',
-				messageVersion: 1
-			},
-			body: { text: body || '' },
-			...(footer ? { footer: { text: footer } } : {}),
-			...(title ? { header: { title, hasMediaAttachment: false, subtitle: '' } } : {})
-		}
-
-		return send(jid, { interactiveMessage } as unknown as AnyMessageContent, options)
-	}
-
-	async function sendNewsletterCtaUrl(
-		jid: string,
-		params: { body?: string; buttonText?: string; url?: string; title?: string; footer?: string },
-		options: MiscMessageGenerationOptions = {}
-	) {
-		const { body, buttonText, url, title, footer } = params
-
-		const interactiveMessage = {
-			nativeFlowMessage: {
-				buttons: [
-					{
-						name: 'cta_url',
-						buttonParamsJson: JSON.stringify({ display_text: buttonText || 'Open', url: url || '', merchant_url: url || '' })
-					}
-				],
-				messageParamsJson: '',
-				messageVersion: 1
-			},
-			body: { text: body || '' },
-			...(footer ? { footer: { text: footer } } : {}),
-			...(title ? { header: { title, hasMediaAttachment: false, subtitle: '' } } : {})
-		}
-
-		return send(jid, { interactiveMessage } as unknown as AnyMessageContent, options)
-	}
-
 	async function sendNewsletterReact(jid: string, serverId: string, emoji?: string) {
 		return conn.newsletterReactMessage(nl(jid), serverId, emoji)
 	}
@@ -184,9 +96,6 @@ export function makeNewsletterUtils(conn: NewsletterSendCapableSocket) {
 		sendNewsletterAudio,
 		sendNewsletterDocument,
 		sendNewsletterSticker,
-		sendNewsletterButtons,
-		sendNewsletterList,
-		sendNewsletterCtaUrl,
 		sendNewsletterReact,
 		editNewsletterMessage,
 		deleteNewsletterMessage
