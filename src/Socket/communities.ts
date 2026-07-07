@@ -14,6 +14,8 @@ import {
 	getBinaryNodeChild,
 	getBinaryNodeChildren,
 	getBinaryNodeChildString,
+	isLidUser,
+	isPnUser,
 	jidEncode,
 	jidNormalizedUser
 } from '../WABinary'
@@ -464,9 +466,12 @@ export const extractCommunityMetadata = (result: BinaryNode) => {
 		joinApprovalMode: !!getBinaryNodeChild(community, 'membership_approval_mode'),
 		memberAddMode,
 		participants: getBinaryNodeChildren(community, 'participant').map(({ attrs }) => {
+			const isLid = isLidUser(attrs.jid)
+			const hasPn = isPnUser(attrs.phone_number)
 			return {
-				// TODO: IMPLEMENT THE PN/LID FIELDS HERE!!
-				id: attrs.jid!,
+				id: isLid && hasPn ? attrs.phone_number! : attrs.jid!,
+				phoneNumber: isLid && hasPn ? attrs.phone_number : undefined,
+				lid: isLid ? attrs.jid : isPnUser(attrs.jid) && isLidUser(attrs.lid) ? attrs.lid : undefined,
 				admin: (attrs.type || null) as GroupParticipant['admin']
 			}
 		}),
@@ -474,4 +479,5 @@ export const extractCommunityMetadata = (result: BinaryNode) => {
 		addressingMode: getBinaryNodeChildString(community, 'addressing_mode')! as GroupMetadata['addressingMode']
 	}
 	return metadata
-}
+				}
+						
