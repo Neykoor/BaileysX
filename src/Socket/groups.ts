@@ -3,6 +3,7 @@ import { proto } from '../../WAProto/index.js'
 import type { GroupMetadata, GroupParticipant, ParticipantAction, SocketConfig, WAMessageKey } from '../Types'
 import { WAMessageAddressingMode, WAMessageStubType } from '../Types'
 import { generateMessageIDV2, unixTimestampSeconds } from '../Utils'
+import type { LIDMappingStore } from '../Signal/lid-mapping'
 import {
 	type BinaryNode,
 	getBinaryNodeChild,
@@ -17,9 +18,41 @@ import { makeChatsSocket } from './chats'
 
 type GroupMetadataCacheEntry = { data: GroupMetadata; ts: number }
 
+const resolveParticipantsLID = async (metadataList: GroupMetadata[], lidMapping: LIDMappingStore) => {
+	const unresolvedLids = new Set<string>()
+	for (const meta of metadataList) {
+		for (const p of meta.participants) {
+			if (!p.phoneNumber && isLidUser(p.id)) {
+				unresolvedLids.add(p.id)
+			}
+		}
+	}
+
+	if (unresolvedLids.size === 0) {
+		return
+	}
+
+	const resolved = await lidMapping.getPNsForLIDs([...unresolvedLids])
+	if (!resolved?.length) {
+		return
+	}
+
+	const lidToPn = new Map(resolved.map(({ lid, pn }) => [lid, pn]))
+	for (const meta of metadataList) {
+		meta.participants = meta.participants.map(p => {
+			const pn = lidToPn.get(p.id)
+			if (!pn) {
+				return p
+			}
+
+			return { ...p, id: pn, phoneNumber: pn, lid: p.id }
+		})
+	}
+}
+
 export const makeGroupsSocket = (config: SocketConfig) => {
 	const sock = makeChatsSocket(config)
-	const { authState, ev, query, upsertMessage } = sock
+	const { authState, ev, query, upsertMessage, signalRepository } = sock
 	const { cachedGroupMetadata, groupCacheTTL } = config
 
 	const groupMetadataCache = new Map<string, GroupMetadataCacheEntry>()
@@ -121,6 +154,7 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 
 		const result = await groupQuery(jid, 'get', [{ tag: 'query', attrs: { request: 'interactive' } }])
 		const meta = extractGroupMetadata(result)
+		await resolveParticipantsLID([meta], signalRepository.lidMapping)
 		setCachedGroupMetadata(jid, meta)
 		return meta
 	}
@@ -157,6 +191,8 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 				data[meta.id] = meta
 			}
 		}
+
+		await resolveParticipantsLID(Object.values(data), signalRepository.lidMapping)
 
 		for (const meta of Object.values(data)) {
 			setCachedGroupMetadata(meta.id, meta)
@@ -502,11 +538,12 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 		joinApprovalMode: !!getBinaryNodeChild(group, 'membership_approval_mode'),
 		memberAddMode,
 		participants: getBinaryNodeChildren(group, 'participant').map(({ attrs }) => {
-			
+			const isLid = isLidUser(attrs.jid)
+			const hasPn = isPnUser(attrs.phone_number)
 			return {
-				id: attrs.jid!,
-				phoneNumber: isLidUser(attrs.jid) && isPnUser(attrs.phone_number) ? attrs.phone_number : undefined,
-				lid: isPnUser(attrs.jid) && isLidUser(attrs.lid) ? attrs.lid : undefined,
+				id: isLid && hasPn ? attrs.phone_number! : attrs.jid!,
+				phoneNumber: isLid && hasPn ? attrs.phone_number : undefined,
+				lid: isLid ? attrs.jid : isPnUser(attrs.jid) && isLidUser(attrs.lid) ? attrs.lid : undefined,
 				username: attrs.participant_username || attrs.username || undefined,
 				admin: (attrs.type || null) as GroupParticipant['admin']
 			}
@@ -517,4 +554,5 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 }
 
 export type GroupsSocket = ReturnType<typeof makeGroupsSocket>
-		
+
+	
