@@ -5,7 +5,7 @@ import { isHostedPnUser, isLidUser, isPnUser, jidDecode, jidNormalizedUser, WAJI
 
 export class LIDMappingStore {
 	private readonly mappingCache = new LRUCache<string, string>({
-		ttl: 3 * 24 * 60 * 60 * 1000, // 7 days
+		ttl: 7 * 24 * 60 * 60 * 1000,
 		ttlAutopurge: true,
 		updateAgeOnGet: true
 	})
@@ -326,10 +326,8 @@ export class LIDMappingStore {
 		return Object.values(successfulPairs).length ? Object.values(successfulPairs) : null
 	}
 
-	/**
-	 * Close the cache and release resources
-	 */
 	close(): void {
 		this.mappingCache.clear()
 	}
-}
+									}
+						
