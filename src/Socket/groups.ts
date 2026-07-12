@@ -53,10 +53,11 @@ const resolveParticipantsLID = async (metadataList: GroupMetadata[], lidMapping:
 export const makeGroupsSocket = (config: SocketConfig) => {
 	const sock = makeChatsSocket(config)
 	const { authState, ev, query, upsertMessage, signalRepository } = sock
-	const { cachedGroupMetadata, groupCacheTTL } = config
+	const { cachedGroupMetadata, groupCacheTTL, logger } = config
 
 	const groupMetadataCache = new Map<string, GroupMetadataCacheEntry>()
 	const cacheTTL = groupCacheTTL > 0 ? groupCacheTTL : 5 * 60 * 1000
+	const inflightGroupMetadataFetches = new Map<string, Promise<GroupMetadata>>()
 
 	const getCachedGroupMetadata = async (jid: string): Promise<GroupMetadata | undefined> => {
 		if (cachedGroupMetadata) {
@@ -105,7 +106,9 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 			const meta = extractGroupMetadata(result)
 			setCachedGroupMetadata(jid, meta)
 			ev.emit('groups.update', [meta])
-		} catch {}
+		} catch (err) {
+			logger?.warn({ err, jid }, 'failed to refresh group metadata')
+		}
 	}
 
 	ev.on('group-participants.update', ({ id, participants, action }) => {
@@ -152,11 +155,26 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 			return cached
 		}
 
-		const result = await groupQuery(jid, 'get', [{ tag: 'query', attrs: { request: 'interactive' } }])
-		const meta = extractGroupMetadata(result)
-		await resolveParticipantsLID([meta], signalRepository.lidMapping)
-		setCachedGroupMetadata(jid, meta)
-		return meta
+		const inflight = inflightGroupMetadataFetches.get(jid)
+		if (inflight) {
+			return inflight
+		}
+
+		const fetchPromise = (async () => {
+			const result = await groupQuery(jid, 'get', [{ tag: 'query', attrs: { request: 'interactive' } }])
+			const meta = extractGroupMetadata(result)
+			await resolveParticipantsLID([meta], signalRepository.lidMapping)
+			setCachedGroupMetadata(jid, meta)
+			return meta
+		})()
+
+		inflightGroupMetadataFetches.set(jid, fetchPromise)
+
+		try {
+			return await fetchPromise
+		} finally {
+			inflightGroupMetadataFetches.delete(jid)
+		}
 	}
 
 	const groupFetchAllParticipating = async () => {
@@ -555,4 +573,5 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 
 export type GroupsSocket = ReturnType<typeof makeGroupsSocket>
 
-	
+
+																					   
