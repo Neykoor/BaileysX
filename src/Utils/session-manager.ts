@@ -27,6 +27,7 @@ const assertSafeId = (id: string): void => {
 
 export const makeSessionManager = (opts: SessionManagerOptions) => {
 	const sessions = new Map<string, SessionEntry>()
+	const pending = new Map<string, Promise<SessionEntry>>()
 
 	const start = async (id: string, overrideConfig?: Omit<Partial<UserFacingSocketConfig>, 'auth'>) => {
 		assertSafeId(id)
@@ -36,29 +37,44 @@ export const makeSessionManager = (opts: SessionManagerOptions) => {
 			return existing
 		}
 
-		const authDir = `${opts.baseAuthDir}/${id}`
-		const { state, saveCreds } = await useMultiFileAuthState(authDir)
-
-		const sock = makeWASocket({
-			...opts.config,
-			...overrideConfig,
-			auth: state
-		})
-
-		sock.ev.on('creds.update', saveCreds)
-
-		const entry: SessionEntry = {
-			id,
-			sock,
-			stop: async () => {
-				sock.ev.removeAllListeners('creds.update')
-				sock.end(undefined)
-				sessions.delete(id)
-			}
+		const inflight = pending.get(id)
+		if (inflight) {
+			return inflight
 		}
 
-		sessions.set(id, entry)
-		return entry
+		const creation = (async () => {
+			const authDir = `${opts.baseAuthDir}/${id}`
+			const { state, saveCreds } = await useMultiFileAuthState(authDir)
+
+			const sock = makeWASocket({
+				...opts.config,
+				...overrideConfig,
+				auth: state
+			})
+
+			sock.ev.on('creds.update', saveCreds)
+
+			const entry: SessionEntry = {
+				id,
+				sock,
+				stop: async () => {
+					sock.ev.removeAllListeners('creds.update')
+					sock.end(undefined)
+					sessions.delete(id)
+				}
+			}
+
+			sessions.set(id, entry)
+			return entry
+		})()
+
+		pending.set(id, creation)
+
+		try {
+			return await creation
+		} finally {
+			pending.delete(id)
+		}
 	}
 
 	const stop = async (id: string) => {
