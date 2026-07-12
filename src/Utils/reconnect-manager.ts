@@ -13,6 +13,7 @@ export type ReconnectOptions = {
 	maxAttempts?: number
 	onSocket?: (sock: WASocket) => void
 	onMaxAttemptsReached?: () => void
+	onStopped?: (statusCode: number | undefined) => void
 	logger?: ILogger
 }
 
@@ -51,10 +52,14 @@ export const makeResilientSocket = (opts: ReconnectOptions) => {
 			if (connection === 'close' && !stopped) {
 				const statusCode = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode
 				if (!shouldReconnect(statusCode)) {
+					stopped = true
+					opts.logger?.warn({ statusCode }, 'reconnect not allowed for this status code, stopping')
+					opts.onStopped?.(statusCode)
 					return
 				}
 
 				if (opts.maxAttempts !== undefined && attempt >= opts.maxAttempts) {
+					stopped = true
 					opts.logger?.error({ attempt }, 'max reconnect attempts reached')
 					opts.onMaxAttemptsReached?.()
 					return
