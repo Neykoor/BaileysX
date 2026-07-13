@@ -133,6 +133,7 @@ export class LIDMappingStore {
 
 	private async _getLIDsForPNsImpl(pns: string[]): Promise<LIDMapping[] | null> {
 		const usyncFetch: { [_: string]: number[] } = {}
+		const usyncFetchJid: { [_: string]: string } = {}
 		const successfulPairs: { [_: string]: LIDMapping } = {}
 		const pending: Array<{ pn: string; pnUser: string; decoded: ReturnType<typeof jidDecode> }> = []
 
@@ -200,17 +201,18 @@ export class LIDMappingStore {
 						normalizedPn = `${pnUser}@s.whatsapp.net`
 					}
 
-					if (!usyncFetch[normalizedPn]) {
-						usyncFetch[normalizedPn] = [device]
+					usyncFetchJid[pnUser] = normalizedPn
+					if (!usyncFetch[pnUser]) {
+						usyncFetch[pnUser] = [device]
 					} else {
-						usyncFetch[normalizedPn]?.push(device)
+						usyncFetch[pnUser]?.push(device)
 					}
 				}
 			}
 		}
 
 		if (Object.keys(usyncFetch).length > 0) {
-			const result = await this.pnToLIDFunc?.(Object.keys(usyncFetch)) // this function already adds LIDs to mapping
+			const result = await this.pnToLIDFunc?.(Object.values(usyncFetchJid))
 			if (result && result.length > 0) {
 				await this.storeLIDPNMappings(result)
 				for (const pair of result) {
@@ -220,7 +222,13 @@ export class LIDMappingStore {
 					const lidUser = jidDecode(pair.lid)?.user
 					if (!lidUser) continue
 
-					for (const device of usyncFetch[pair.pn]!) {
+					const devices = usyncFetch[pnUser]
+					if (!devices) {
+						this.logger.warn(`USync returned mapping for unrequested PN user ${pnUser}, skipping`)
+						continue
+					}
+
+					for (const device of devices) {
 						const deviceSpecificLid = `${lidUser}${!!device ? `:${device}` : ``}@${device === 99 ? 'hosted.lid' : 'lid'}`
 
 						this.logger.trace(
@@ -329,5 +337,5 @@ export class LIDMappingStore {
 	close(): void {
 		this.mappingCache.clear()
 	}
-									}
-						
+			 }
+					
