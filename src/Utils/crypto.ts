@@ -41,7 +41,7 @@ export const signedKeyPair = (identityKeyPair: KeyPair, keyId: number) => {
 
 	const signature = Curve.sign(identityKeyPair.private, pubKey)
 
-	return { keyPair: preKey, signature, keyId }
+	return { keyPair: preKey, signature, keyId, timestampS: Math.floor(Date.now() / 1000) }
 }
 
 const GCM_TAG_LENGTH = 128 >> 3
