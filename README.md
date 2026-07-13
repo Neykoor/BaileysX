@@ -16,21 +16,21 @@
 
 ## ✨ ¿Qué cambió en este paquete?
 
-Este `BaileysX` viene adaptado para consumir [`libsignal-node`](https://github.com/Neykoor/libsignal-node) (el port 100% TypeScript de `libsignal-node`) directamente **por Git**, en lugar del fork `this-xys/libsignal-node`.
+`BaileysX` consume [`libsignal-node-ts`](https://www.npmjs.com/package/libsignal-node-ts) (el port 100% TypeScript de `libsignal-node`) directamente desde el **registro de npm**, en lugar del fork `this-xys/libsignal-node`.
 
-Como ese repo **no está publicado en npm**, la dependencia se declara apuntando al repositorio de Git:
+La dependencia se declara con un alias de npm, para que el resto del código siga usando el nombre corto `libsignal`:
 
 ```json
 "dependencies": {
-  "libsignal": "git+https://github.com/Neykoor/libsignal-node.git"
+  "libsignal": "npm:libsignal-node-ts@^1.0.0"
 }
 ```
 
-npm sigue usando el alias `libsignal` como nombre de carpeta en `node_modules` (es la clave del `package.json`, no el `name` interno del paquete), así que todo el código que hace `import ... from 'libsignal'` sigue funcionando sin tocar el resto del proyecto.
+npm usa la clave `libsignal` como nombre de carpeta en `node_modules` (no el `name` interno del paquete), así que todo el código que hace `import ... from 'libsignal'` funciona sin tocar el resto del proyecto. Al venir del registro normal en vez de Git, la instalación funciona también en hosts que bloquean fetch de paquetes por git o por tarball remoto.
 
 ## 🔧 Cambios de compatibilidad aplicados
 
-`libsignal-node-ts` no expone todo por el barrel `index.ts` (por ejemplo `protobufs`, `curve` y `crypto` internos no se re-exportan), así que los imports que antes apuntaban al código fuente sin compilar (`libsignal/src/...`) ahora apuntan al build compilado (`libsignal/lib/...js`), que es lo que realmente existe una vez instalado el paquete:
+`libsignal-node-ts` no expone todo por el barrel `index.ts` (por ejemplo `protobufs`, `curve` y `crypto` internos no se re-exportan), así que algunos imports que antes apuntaban al código fuente sin compilar (`libsignal/src/...`) ahora apuntan al build compilado (`libsignal/lib/...js`), que es lo que realmente existe una vez instalado el paquete:
 
 | Antes | Ahora |
 |---|---|
@@ -51,34 +51,18 @@ Archivos tocados:
 
 El resto de la API (`ProtocolAddress`, `SessionBuilder`, `SessionCipher`, `SessionRecord`, `keyhelper`, `curve`) se sigue importando igual con `import * as libsignal from 'libsignal'`, porque esos sí están exportados desde el `index.ts` del paquete.
 
-## ⚠️ Requisito en el repo `libsignal-node`
-
-Como el paquete se instala directo desde Git (no desde un tarball de npm), **no trae compilado el `lib/`**. Para que `npm install` funcione, el repo `Neykoor/libsignal-node` necesita un script `prepare` que compile al instalarse, y además arreglar las rutas relativas para que tengan extensión `.js` (Node ESM las exige en tiempo de ejecución):
-
-```json
-"scripts": {
-  "build": "tsc -P tsconfig.json && tsc-esm-fix --tsconfig=tsconfig.json --ext=.js",
-  "prepare": "npm run build"
-},
-"devDependencies": {
-  "tsc-esm-fix": "^3.1.2"
-}
-```
-
-Este repo incluye ese parche listo en la carpeta [`libsignal-node-patch/`](../libsignal-node-patch) — solo hay que aplicar ese `package.json` sobre `Neykoor/libsignal-node` y subirlo. Sin ese cambio, `npm install` en BaileysX fallará porque `lib/index.js` no existirá.
-
 ## 🚀 Instalación
 
 ```bash
-npm install git+https://github.com/Neykoor/BaileysX.git
+npm install baileysx
 ```
 
-Esto instalará automáticamente `libsignal` desde `git+https://github.com/Neykoor/libsignal-node.git` como dependencia transitiva.
+Esto instala automáticamente `libsignal-node-ts` desde el registro de npm como dependencia transitiva, ya compilado — no requiere Git ni ningún paso extra.
 
-Si vienes de una instalación previa con el fork viejo, borra el lockfile y `node_modules` de libsignal antes de reinstalar:
+Si vienes de una instalación previa con el fork viejo o con la dependencia por Git, borra el lockfile y `node_modules` antes de reinstalar:
 
 ```bash
-rm -rf node_modules/libsignal package-lock.json
+rm -rf node_modules package-lock.json
 npm install
 ```
 
@@ -104,7 +88,7 @@ Internamente, `sock` usa `makeLibSignalRepository` (`src/Signal/libsignal.ts`) p
 npm run build
 ```
 
-Compila `tsc -P tsconfig.build.json` y corre `tsc-esm-fix` sobre el propio BaileysX; si la instalación de `libsignal` generó bien su `lib/`, el build no debería marcar errores de tipos ni de resolución de módulos.
+Compila `tsc -P tsconfig.build.json` y corre `tsc-esm-fix` sobre el propio BaileysX; si la instalación de `libsignal` resolvió bien su `lib/`, el build no debería marcar errores de tipos ni de resolución de módulos.
 
 ---
 
