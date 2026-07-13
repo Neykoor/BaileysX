@@ -32,7 +32,7 @@ export class GroupCipher {
 		}
 
 		const iteration = senderKeyState.getSenderChainKey().getIteration()
-		const senderKey = this.getSenderKey(senderKeyState, iteration === 0 ? 0 : iteration + 1)
+		const senderKey = this.getSenderKey(senderKeyState, iteration)
 
 		const ciphertext = await this.getCipherText(senderKey.getIv(), senderKey.getCipherKey(), paddedPlaintext)
 
