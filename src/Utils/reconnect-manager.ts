@@ -1,4 +1,4 @@
-import { Boom } from '@hapi/boom'
+import { Boom } from '@neykoor/boom'
 import makeWASocket from '../Socket/index.js'
 import { DisconnectReason, type UserFacingSocketConfig } from '../Types'
 import type { ILogger } from './logger'
