@@ -1,4 +1,4 @@
-import { Boom } from '@hapi/boom'
+import { Boom } from '@neykoor/boom'
 import { createHash } from 'crypto'
 import { createWriteStream, promises as fs } from 'fs'
 import { tmpdir } from 'os'
