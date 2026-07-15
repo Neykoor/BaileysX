@@ -58,9 +58,12 @@ export const makeSessionManager = (opts: SessionManagerOptions) => {
 				id,
 				sock,
 				stop: async () => {
-					sock.ev.removeAllListeners('creds.update')
-					sock.end(undefined)
-					sessions.delete(id)
+					try {
+						sock.ev.removeAllListeners('creds.update')
+						sock.end(undefined)
+					} finally {
+						sessions.delete(id)
+					}
 				}
 			}
 
