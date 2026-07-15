@@ -3,6 +3,24 @@ import type { LIDMapping, SignalKeyStoreWithTransaction } from '../Types'
 import type { ILogger } from '../Utils/logger'
 import { isHostedPnUser, isLidUser, isPnUser, jidDecode, jidNormalizedUser, WAJIDDomains } from '../WABinary'
 
+const LOOKUP_TIMEOUT_MS = 30_000
+
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error(`lookup timed out after ${ms}ms`)), ms)
+		promise.then(
+			value => {
+				clearTimeout(timer)
+				resolve(value)
+			},
+			error => {
+				clearTimeout(timer)
+				reject(error)
+			}
+		)
+	})
+}
+
 export class LIDMappingStore {
 	private readonly mappingCache = new LRUCache<string, string>({
 		ttl: 7 * 24 * 60 * 60 * 1000,
@@ -98,7 +116,6 @@ export class LIDMappingStore {
 			await this.keys.set({ 'lid-mapping': batchData })
 		}, 'lid-mapping')
 
-		// Update cache after successful DB write
 		for (const [pnUser, lidUser] of Object.entries(pairMap)) {
 			this.mappingCache.set(`pn:${pnUser}`, lidUser)
 			this.mappingCache.set(`lid:${lidUser}`, pnUser)
@@ -121,7 +138,7 @@ export class LIDMappingStore {
 			return inflight
 		}
 
-		const promise = this._getLIDsForPNsImpl(pns)
+		const promise = withTimeout(this._getLIDsForPNsImpl(pns), LOOKUP_TIMEOUT_MS)
 		this.inflightLIDLookups.set(cacheKey, promise)
 
 		try {
@@ -144,7 +161,6 @@ export class LIDMappingStore {
 				return false
 			}
 
-			// Push the PN device ID to the LID to maintain device separation
 			const pnDevice = decoded!.device !== undefined ? decoded!.device : 0
 			const deviceSpecificLid = `${normalizedLidUser}${!!pnDevice ? `:${pnDevice}` : ``}@${
 				decoded!.server === 'hosted' ? 'hosted.lid' : 'lid'
@@ -264,7 +280,7 @@ export class LIDMappingStore {
 			return inflight
 		}
 
-		const promise = this._getPNsForLIDsImpl(lids)
+		const promise = withTimeout(this._getPNsForLIDsImpl(lids), LOOKUP_TIMEOUT_MS)
 		this.inflightPNLookups.set(cacheKey, promise)
 
 		try {
@@ -337,5 +353,5 @@ export class LIDMappingStore {
 	close(): void {
 		this.mappingCache.clear()
 	}
-			 }
-					
+	}
+								
