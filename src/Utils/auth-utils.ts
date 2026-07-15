@@ -1,5 +1,5 @@
 import NodeCache from '@neykoor/node-cache'
-import { Boom } from '@hapi/boom'
+import { Boom } from '@neykoor/boom'
 import { AsyncLocalStorage } from 'async_hooks'
 import { Mutex } from 'async-mutex'
 import { randomBytes } from 'crypto'
@@ -351,4 +351,4 @@ export const initAuthCreds = (): AuthenticationCreds => {
 		routingInfo: undefined,
 		additionalData: undefined
 	}
-}
+	}
