@@ -1,4 +1,4 @@
-import { Boom } from '@hapi/boom'
+import { Boom } from '@neykoor/boom'
 import { randomBytes } from 'crypto'
 import { proto } from '../../WAProto/index.js'
 import type { AuthenticationCreds } from '../Types'
@@ -238,4 +238,5 @@ export const makeShortcakeFlow = (opts: ShortcakeFlowOptions) => {
 }
 
 export type ShortcakeFlow = ReturnType<typeof makeShortcakeFlow>
+
 			
