@@ -1,4 +1,4 @@
-import { Boom } from '@hapi/boom'
+import { Boom } from '@neykoor/boom'
 import { createHash } from 'crypto'
 import { proto } from '../../WAProto/index.js'
 import {
@@ -255,12 +255,10 @@ export const configureSuccessfulPairing = (
 
 export const encodeSignedDeviceIdentity = (account: proto.IADVSignedDeviceIdentity, includeSignatureKey: boolean) => {
 	account = { ...account }
-	// set to null if we are not to include the signature key
-	// or if we are including the signature key but it is empty
-	if (!includeSignatureKey || !account.accountSignatureKey?.length) {
+		if (!includeSignatureKey || !account.accountSignatureKey?.length) {
 		account.accountSignatureKey = null
 	}
 
 	return proto.ADVSignedDeviceIdentity.encode(account).finish()
 }
-	
+
