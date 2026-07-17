@@ -353,5 +353,4 @@ export class LIDMappingStore {
 	close(): void {
 		this.mappingCache.clear()
 	}
-	}
-								
+}
