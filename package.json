@@ -1,7 +1,7 @@
 {
   "name": "@neykoor/baileys",
   "type": "module",
-  "version": "7.0.6-rc15",
+  "version": "7.0.5-rc15",
   "description": "A WebSockets library for interacting with WhatsApp Web",
   "keywords": [
     "whatsapp",
@@ -40,7 +40,7 @@
     "p-queue": "^9.0.0",
     "pino": "^9.6.0",
     "protobufjs": "^7.5.6",
-    "whatsapp-rust-bridge": "npm:@neykoor/whatsapp-rust-bridge@latest",
+    "whatsapp-rust-bridge": "0.5.4",
     "ws": "^8.18.0"
   },
   "devDependencies": {
