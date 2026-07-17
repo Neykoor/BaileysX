@@ -79,7 +79,7 @@ export const generateLoginNode = (userJid: string, config: SocketConfig): proto.
 		pull: true,
 		username: +user,
 		device: device,
-		// TODO: investigate (hard set as false atm)
+		
 		lidDbMigrated: false
 	}
 	return proto.ClientPayload.fromObject(payload)
@@ -101,10 +101,9 @@ export const generateRegistrationNode = (
 	{ registrationId, signedPreKey, signedIdentityKey }: SignalCreds,
 	config: SocketConfig
 ) => {
-	// the app version needs to be md5 hashed
-	// and passed in
+	
 	const appVersionBuf = createHash('md5')
-		.update(config.version.join('.')) // join as string
+		.update(config.version.join('.')) 
 		.digest()
 
 	const companion: proto.IDeviceProps = {
@@ -255,10 +254,11 @@ export const configureSuccessfulPairing = (
 
 export const encodeSignedDeviceIdentity = (account: proto.IADVSignedDeviceIdentity, includeSignatureKey: boolean) => {
 	account = { ...account }
-		if (!includeSignatureKey || !account.accountSignatureKey?.length) {
+	if (!includeSignatureKey || !account.accountSignatureKey?.length) {
 		account.accountSignatureKey = null
 	}
 
 	return proto.ADVSignedDeviceIdentity.encode(account).finish()
 }
 
+		
