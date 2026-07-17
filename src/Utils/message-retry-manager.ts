@@ -322,4 +322,4 @@ export class MessageRetryManager {
 
 		this.messageKeyIndex.delete(messageId)
 	}
-			}
+}
