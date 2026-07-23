@@ -52,10 +52,10 @@ export const PROCESSABLE_HISTORY_TYPES = [
 ]
 
 export const DEFAULT_CACHE_TTLS = {
-	SIGNAL_STORE: 5 * 60, 
-	MSG_RETRY: 60 * 60, 
-	CALL_OFFER: 5 * 60, 
-	USER_DEVICES: 5 * 60 
+	SIGNAL_STORE: 15 * 60,
+	MSG_RETRY: 60 * 60,
+	CALL_OFFER: 5 * 60,
+	USER_DEVICES: 30 * 60
 }
 
 export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
@@ -63,12 +63,12 @@ export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
 	browser: Browsers.macOS('Chrome'),
 	waWebSocketUrl: 'wss://web.whatsapp.com/ws/chat',
 	connectTimeoutMs: 20_000,
-	keepAliveIntervalMs: 30_000,
+	keepAliveIntervalMs: 10_000,
 	logger: logger.child({ class: 'baileys' }),
 	emitOwnEvents: true,
 	defaultQueryTimeoutMs: 60_000,
 	customUploadHosts: [],
-	retryRequestDelayMs: 250,
+	retryRequestDelayMs: 150,
 	maxMsgRetryCount: 5,
 	fireInitQueries: true,
 	auth: undefined as unknown as AuthenticationState,
@@ -80,7 +80,7 @@ export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
 	},
 	shouldIgnoreJid: () => false,
 	linkPreviewImageThumbnailWidth: 192,
-	transactionOpts: { maxCommitRetries: 10, delayBetweenTriesMs: 3000 },
+	transactionOpts: { maxCommitRetries: 5, delayBetweenTriesMs: 500 },
 	generateHighQualityLinkPreview: false,
 	enableAutoSessionRecreation: true,
 	enableRecentMessageCache: true,
