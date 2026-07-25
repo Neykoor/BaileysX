@@ -92,6 +92,24 @@ El header acepta `text` (solo texto, sin media) o cualquier campo de media (`ima
 
 ---
 
+## 🙌 Créditos
+
+Bails es un fork de Baileys, la librería original mantenida por la comunidad de WhiskeySockets. Gran parte de la base de este proyecto —el manejo del protocolo de WhatsApp Web, el cifrado, la arquitectura del socket y la mayoría del código— proviene de ese trabajo original.
+
+<div align="center">
+
+| <img src="https://github.com/WhiskeySockets.png" width="80" /><br>**WhiskeySockets**<br>Autor original de Baileys<br>[GitHub ↗](https://github.com/WhiskeySockets) | <img src="https://github.com/Neykoor.png" width="80" /><br>**Neykoor**<br>Mantenido y extendido por mí<br>[GitHub ↗](https://github.com/Neykoor) |
+|:---:|:---:|
+
+</div>
+
+- Repositorio oficial: https://github.com/WhiskeySockets/Baileys
+- Licencia: MIT
+
+Si esta librería te resulta útil, considerá también dar reconocimiento y apoyo al proyecto original. 🙌
+
+---
+
 <div align="center">
 Hecho con ☕ para el ecosistema <b>Eris-MD</b> / <b>BaileysX</b>
 </div>
