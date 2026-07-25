@@ -2,6 +2,8 @@
 
 # BaileysX
 
+<img src="./assets/banner.png" alt="BaileysX banner" width="100%" />
+
 **Librería de WebSockets para WhatsApp Web, con [`libsignal-node-ts`](https://github.com/Neykoor/libsignal-node) como backend de Signal Protocol**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
