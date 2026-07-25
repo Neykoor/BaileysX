@@ -18,12 +18,7 @@
 
 `BaileysX` consume [`libsignal-node-ts`](https://www.npmjs.com/package/libsignal-node-ts) (el port 100% TypeScript de `libsignal-node`) directamente desde el **registro de npm**, en lugar del fork `this-xys/libsignal-node`.
 
-La dependencia se declara con un alias de npm, para que el resto del código siga usando el nombre corto `libsignal`:
 
-```json
-"dependencies": {
-  "libsignal": "npm:libsignal-node-ts@^1.0.0"
-}
 ```
 
 npm usa la clave `libsignal` como nombre de carpeta en `node_modules` (no el `name` interno del paquete), así que todo el código que hace `import ... from 'libsignal'` funciona sin tocar el resto del proyecto. Al venir del registro normal en vez de Git, la instalación funciona también en hosts que bloquean fetch de paquetes por git o por tarball remoto.
@@ -51,21 +46,6 @@ Archivos tocados:
 
 El resto de la API (`ProtocolAddress`, `SessionBuilder`, `SessionCipher`, `SessionRecord`, `keyhelper`, `curve`) se sigue importando igual con `import * as libsignal from 'libsignal'`, porque esos sí están exportados desde el `index.ts` del paquete.
 
-## 🚀 Instalación
-
-```bash
-npm install baileysx
-```
-
-Esto instala automáticamente `libsignal-node-ts` desde el registro de npm como dependencia transitiva, ya compilado — no requiere Git ni ningún paso extra.
-
-Si vienes de una instalación previa con el fork viejo o con la dependencia por Git, borra el lockfile y `node_modules` antes de reinstalar:
-
-```bash
-rm -rf node_modules package-lock.json
-npm install
-```
-
 ## 📖 Uso básico
 
 ```ts
@@ -82,13 +62,36 @@ sock.ev.on('connection.update', (update) => {
 
 Internamente, `sock` usa `makeLibSignalRepository` (`src/Signal/libsignal.ts`) para cifrar/descifrar sesiones y mensajes de grupo con `libsignal-node-ts`, con el mismo API que antes.
 
-## 🧪 Verificación
+## 🔘 Botones interactivos
 
-```bash
-npm run build
+`sock.sendMessage` detecta la propiedad `buttons` y arma un `interactiveMessage` con `nativeFlowMessage` automáticamente — no hace falta construir el payload de WhatsApp a mano.
+
+```ts
+await sock.sendMessage(jid, {
+  image: { url: './media/menu.jpg' },
+  caption: '✿ *Menú de botones*\n> Elegí una opción:',
+  title: '𝐁𝐨𝐭 𝐌𝐞𝐧𝐮',
+  subtitle: 'Cafirexos',
+  footer: 'Neykoor · BaileysX',
+  buttons: [
+    { text: '📜 Ver comandos', id: '.menu' },
+    { text: '👤 Mi perfil', id: '.perfil' },
+    { text: '📢 Canal oficial', url: 'https://whatsapp.com/channel/0029Vb7NOUpF1YlXOQHW6d3O' }
+  ]
+}, { quoted: msg })
 ```
 
-Compila `tsc -P tsconfig.build.json` y corre `tsc-esm-fix` sobre el propio BaileysX; si la instalación de `libsignal` resolvió bien su `lib/`, el build no debería marcar errores de tipos ni de resolución de módulos.
+Cada botón se resuelve según qué propiedad traiga:
+
+| Propiedad en el botón | Tipo generado | Comportamiento |
+|---|---|---|
+| `id` | `quick_reply` | Envía `id` como si el usuario lo hubiera escrito |
+| `url` | `cta_url` | Abre el link en el navegador |
+| `call` | `cta_call` | Inicia una llamada al número |
+| `copy` | `cta_copy` | Copia el texto al portapapeles |
+| `sections` | `single_select` | Lista desplegable con secciones |
+
+El header acepta `text` (solo texto, sin media) o cualquier campo de media (`image`, `video`, `document`) junto con `caption`. Si no se pasa ninguno de los dos, tira error porque el header necesita `text` o media.
 
 ---
 
