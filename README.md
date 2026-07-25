@@ -16,10 +16,7 @@
 
 ## ✨ ¿Qué cambió en este paquete?
 
-`BaileysX` consume [`libsignal-node-ts`](https://www.npmjs.com/package/libsignal-node-ts) (el port 100% TypeScript de `libsignal-node`) directamente desde el **registro de npm**, en lugar del fork `this-xys/libsignal-node`.
-
-
-```
+`BaileysX` consume [`libsignal-node-ts`](https://www.npmjs.com/package/libsignal-node-ts) (el port 100% TypeScript de `libsignal-node`) directamente desde el **registro de npm**, en lugar del fork `this-xys/libsignal-node`.``
 
 npm usa la clave `libsignal` como nombre de carpeta en `node_modules` (no el `name` interno del paquete), así que todo el código que hace `import ... from 'libsignal'` funciona sin tocar el resto del proyecto. Al venir del registro normal en vez de Git, la instalación funciona también en hosts que bloquean fetch de paquetes por git o por tarball remoto.
 
