@@ -244,14 +244,16 @@ export class LIDMappingStore {
 						continue
 					}
 
+					const isHosted = isHostedPnUser(pair.pn) || isHostedPnUser(usyncFetchJid[pnUser])
+
 					for (const device of devices) {
-						const deviceSpecificLid = `${lidUser}${!!device ? `:${device}` : ``}@${device === 99 ? 'hosted.lid' : 'lid'}`
+						const deviceSpecificLid = `${lidUser}${!!device ? `:${device}` : ``}@${isHosted ? 'hosted.lid' : 'lid'}`
 
 						this.logger.trace(
 							`getLIDForPN: USYNC success for ${pair.pn} → ${deviceSpecificLid} (user mapping with device ${device})`
 						)
 
-						const deviceSpecificPn = `${pnUser}${!!device ? `:${device}` : ``}@${device === 99 ? 'hosted' : 's.whatsapp.net'}`
+						const deviceSpecificPn = `${pnUser}${!!device ? `:${device}` : ``}@${isHosted ? 'hosted' : 's.whatsapp.net'}`
 
 						successfulPairs[deviceSpecificPn] = { lid: deviceSpecificLid, pn: deviceSpecificPn }
 					}
@@ -353,4 +355,5 @@ export class LIDMappingStore {
 	close(): void {
 		this.mappingCache.clear()
 	}
-}
+			}
+			
