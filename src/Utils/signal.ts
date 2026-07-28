@@ -101,7 +101,7 @@ export const extractE2ESessionFromRetryReceipt = (receipt: BinaryNode) => {
 	if (!identity || identity.length !== 32 || !skey) return null
 
 	const registrationId = getBinaryNodeChildUInt(receipt, 'registration', 4)
-	if (!isValidUInt(registrationId)) return null
+	if (!isValidUInt(registrationId) || registrationId === 0) return null
 
 	const signedPubKey = getBinaryNodeChildBuffer(skey, 'value')
 	const signedSig = getBinaryNodeChildBuffer(skey, 'signature')
@@ -252,4 +252,5 @@ export const getNextPreKeysNode = async (state: AuthenticationState, count: numb
 	}
 
 	return { update, node }
-				  }
+		}
+		
