@@ -118,28 +118,37 @@ export class MessageScheduler {
 		return count
 	}
 
-	private async processQueue() {
-		const now = Date.now()
-		for (const [id, scheduled] of this.queue) {
-			if (scheduled.status !== 'pending') continue
-			if (scheduled.scheduledTime.getTime() > now) continue
+	private isProcessing = false
 
-			try {
-				const message = await this.sendMessage(scheduled.jid, scheduled.content, scheduled.options)
-				scheduled.status = 'sent'
-				scheduled.messageId = message?.key?.id ?? undefined
-				this.options.onSent(scheduled, message)
-			} catch (error) {
-				scheduled.status = 'failed'
-				scheduled.error = (error as Error)?.message ?? String(error)
-				this.options.onFailed(scheduled, error)
+	private async processQueue() {
+		if (this.isProcessing) return
+		this.isProcessing = true
+
+		try {
+			const now = Date.now()
+			for (const [id, scheduled] of this.queue) {
+				if (scheduled.status !== 'pending') continue
+				if (scheduled.scheduledTime.getTime() > now) continue
+
+				try {
+					const message = await this.sendMessage(scheduled.jid, scheduled.content, scheduled.options)
+					scheduled.status = 'sent'
+					scheduled.messageId = message?.key?.id ?? undefined
+					this.options.onSent(scheduled, message)
+				} catch (error) {
+					scheduled.status = 'failed'
+					scheduled.error = (error as Error)?.message ?? String(error)
+					this.options.onFailed(scheduled, error)
+				}
+
+				this.queue.delete(id)
 			}
 
-			this.queue.delete(id)
-		}
-
-		if (this.queue.size === 0) {
-			this.stopTimer()
+			if (this.queue.size === 0) {
+				this.stopTimer()
+			}
+		} finally {
+			this.isProcessing = false
 		}
 	}
 
