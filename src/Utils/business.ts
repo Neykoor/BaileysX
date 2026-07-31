@@ -248,6 +248,11 @@ export const uploadingNecessaryImages = async (
 				encFileWriteStream.write(block)
 			}
 
+			await new Promise<void>((resolve, reject) => {
+				encFileWriteStream.once('error', reject)
+				encFileWriteStream.end(resolve)
+			})
+
 			const sha = hasher.digest('base64')
 
 			const { directPath } = await waUploadToServer(filePath, {
