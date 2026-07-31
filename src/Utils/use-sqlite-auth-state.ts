@@ -59,6 +59,7 @@ export async function useSqliteAuthState(
 
 	db.pragma('journal_mode = WAL')
 	db.pragma('synchronous = NORMAL')
+	db.pragma('busy_timeout = 5000')
 	db.exec(CREATE_SCHEMA_SQL)
 
 	let closed = false
@@ -148,4 +149,4 @@ export async function useSqliteAuthState(
 			} catch {}
 		}
 	}
-								 }
+}
