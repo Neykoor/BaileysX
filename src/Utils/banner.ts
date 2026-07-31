@@ -4,7 +4,7 @@ const BOLD = `${ESC}1m`
 const DIM = `${ESC}2m`
 
 
-const GRADIENT = [51, 45, 39, 69, 105, 141, 177, 213, 207, 201]
+const GRADIENT = [54, 57, 93, 99, 135, 141, 177, 183, 207, 201]
 
 const paint = (text: string, color: number, bold = false) => `${bold ? BOLD : ''}${ESC}38;5;${color}m${text}${RESET}`
 
@@ -22,7 +22,7 @@ const gradientLine = (text: string, offset = 0) => {
 }
 
 
-export const BAILEYSX_VERSION = '1.0.0'
+export const BAILEYSX_VERSION = '7.0.10-rc1'
 
 let printed = false
 
@@ -42,9 +42,9 @@ export const printBanner = (version: string = BAILEYSX_VERSION) => {
 
 	const title = 'B A I L E Y S X'
 	const subtitle = '— w h a t s a p p   s o c k e t —'
-	const items = ['◆ modo turbo · baja latencia', '◆ botones nativos · listas · flows', '◆ consola limpia · cero ruido']
+	const items = ['◆ Signal Protocol en TypeScript', '◆ Botones nativos · flows interactivos', '◆ Comunidades · newsletters · grupos']
 
-	const edge = (ch: string) => paint(ch, 105)
+	const edge = (ch: string) => paint(ch, 99)
 	const out = [
 		'',
 		`${edge('╭')}${gradientLine(line)}${edge('╮')}`,
@@ -52,7 +52,7 @@ export const printBanner = (version: string = BAILEYSX_VERSION) => {
 		`${edge('│')}${pad(`${BOLD}${gradientLine(title)}`, title.length)}${edge('│')}`,
 		`${edge('│')}${pad(gradientLine(subtitle, 3), subtitle.length)}${edge('│')}`,
 		`${edge('│')}${' '.repeat(width)}${edge('│')}`,
-		...items.map(item => `${edge('│')}${pad(paint(item, 250), item.length)}${edge('│')}`),
+		...items.map(item => `${edge('│')}${pad(paint(item, 183), item.length)}${edge('│')}`),
 		`${edge('│')}${' '.repeat(width)}${edge('│')}`,
 		`${edge('│')}${pad(`${DIM}v${version}${RESET}`, version.length + 1)}${edge('│')}`,
 		`${edge('╰')}${gradientLine(line, 3)}${edge('╯')}`,
@@ -64,12 +64,7 @@ export const printBanner = (version: string = BAILEYSX_VERSION) => {
 
 let versionNoticePrinted = false
 
-export type WaVersionSource =
-	
-	| 'live'
-	| 'pinned'
-	| 'bundled'
-
+export type WaVersionSource = 'live' | 'pinned' | 'bundled'
 
 export const printWaVersionNotice = ({ version, source }: { version: number[]; source: WaVersionSource }) => {
 	if (versionNoticePrinted || process.env.BAILEYSX_NO_BANNER) {
@@ -91,5 +86,5 @@ export const printWaVersionNotice = ({ version, source }: { version: number[]; s
 	}
 
 	const label = source === 'live' ? 'en vivo' : 'fijada'
-	console.log(`${paint('◆', 105)} ${paint(`WA Web ${v} (${label})`, 250)}\n`)
-      }
+	console.log(`${paint('◆', 99)} ${paint(`WA Web ${v} (${label})`, 250)}\n`)
+}
