@@ -200,32 +200,39 @@ export class MessageRetryManager {
 		return errorCode !== undefined && MAC_ERROR_CODES.has(errorCode)
 	}
 
-	incrementRetryCount(messageId: string): number {
-		this.retryCounters.set(messageId, (this.retryCounters.get(messageId) || 0) + 1)
+	incrementRetryCount(messageId: string, participant?: string): number {
+		const key = this.retryCounterKey(messageId, participant)
+		this.retryCounters.set(key, (this.retryCounters.get(key) || 0) + 1)
 		this.statistics.totalRetries++
-		return this.retryCounters.get(messageId)!
+		return this.retryCounters.get(key)!
 	}
 
-	getRetryCount(messageId: string): number {
-		return this.retryCounters.get(messageId) || 0
+	getRetryCount(messageId: string, participant?: string): number {
+		return this.retryCounters.get(this.retryCounterKey(messageId, participant)) || 0
 	}
 
-	hasExceededMaxRetries(messageId: string): boolean {
-		return this.getRetryCount(messageId) >= this.maxMsgRetryCount
+	hasExceededMaxRetries(messageId: string, participant?: string): boolean {
+		return this.getRetryCount(messageId, participant) >= this.maxMsgRetryCount
 	}
 
-	markRetrySuccess(messageId: string, to?: string): void {
+	markRetrySuccess(messageId: string, to?: string, participant?: string): void {
 		this.statistics.successfulRetries++
+		this.retryCounters.delete(this.retryCounterKey(messageId, participant))
 		this.retryCounters.delete(messageId)
 		this.cancelPendingPhoneRequest(messageId)
 		this.removeRecentMessage(messageId, to)
 	}
 
-	markRetryFailed(messageId: string, to?: string): void {
+	markRetryFailed(messageId: string, to?: string, participant?: string): void {
 		this.statistics.failedRetries++
+		this.retryCounters.delete(this.retryCounterKey(messageId, participant))
 		this.retryCounters.delete(messageId)
 		this.cancelPendingPhoneRequest(messageId)
 		this.removeRecentMessage(messageId, to)
+	}
+
+	private retryCounterKey(messageId: string, participant?: string): string {
+		return participant ? `${messageId}${MESSAGE_KEY_SEPARATOR}${participant}` : messageId
 	}
 
 	schedulePhoneRequest(messageId: string, callback: () => void, delay: number = PHONE_REQUEST_DELAY): void {
@@ -322,4 +329,5 @@ export class MessageRetryManager {
 
 		this.messageKeyIndex.delete(messageId)
 	}
-}
+			}
+			
