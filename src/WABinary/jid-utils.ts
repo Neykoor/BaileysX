@@ -1,3 +1,5 @@
+import { LRUCache } from 'lru-cache'
+
 export const S_WHATSAPP_NET = '@s.whatsapp.net'
 export const OFFICIAL_BIZ_JID = '16505361212@c.us'
 export const SERVER_JID = 'server@c.us'
@@ -125,4 +127,52 @@ export const transferDevice = (fromJid: string, toJid: string) => {
 	const deviceId = fromDecoded?.device || 0
 	const { server, user } = jidDecode(toJid)!
 	return jidEncode(user, server, deviceId)
+}
+
+const LID_PHONE_CACHE_MAX_SIZE = 3000
+const LID_PHONE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+export type LidPhoneCache = {
+	set(lid: string | undefined, phoneJid: string | undefined): void
+	get(key: string | undefined): string | undefined
+	getLidForPhone(phoneJid: string | undefined): string | undefined
+	getPhoneForLid(lid: string | undefined): string | undefined
+	readonly size: number
+}
+
+/** bidirectional LID<->PN in-memory cache, opportunistically populated while parsing binary nodes */
+export function createLidPhoneCache(): LidPhoneCache {
+	const cache = new LRUCache<string, string>({
+		max: LID_PHONE_CACHE_MAX_SIZE * 2,
+		ttl: LID_PHONE_CACHE_TTL_MS,
+		ttlAutopurge: true,
+		updateAgeOnGet: true
+	})
+
+	return {
+		set(lid, phoneJid) {
+			if (!lid || !phoneJid || typeof lid !== 'string' || typeof phoneJid !== 'string') return
+			if (!phoneJid.includes('@')) phoneJid = phoneJid + S_WHATSAPP_NET
+
+			cache.set(lid, phoneJid)
+			cache.set(phoneJid, lid)
+		},
+		get(key) {
+			if (!key) return undefined
+			return cache.get(key)
+		},
+		getLidForPhone(phoneJid) {
+			if (!phoneJid) return undefined
+			const val = cache.get(phoneJid)
+			return val && (isLidUser(val) || isHostedLidUser(val)) ? val : undefined
+		},
+		getPhoneForLid(lid) {
+			if (!lid) return undefined
+			const val = cache.get(lid)
+			return val && (isPnUser(val) || isHostedPnUser(val)) ? val : undefined
+		},
+		get size() {
+			return cache.size
+		}
+	}
 }
