@@ -14,11 +14,10 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 		...config
 	}
 
-		if (config.version && config.syncWaWebVersion === undefined) {
+	if (config.version && config.syncWaWebVersion === undefined) {
 		newConfig.syncWaWebVersion = false
 	}
 
-		
 	if (!newConfig.version) {
 		newConfig.version = DEFAULT_CONNECTION_CONFIG.version
 	}
