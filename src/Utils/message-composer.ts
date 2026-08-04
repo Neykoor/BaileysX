@@ -1,3 +1,4 @@
+import { randomBytes, randomUUID } from 'crypto'
 import { proto } from '../../WAProto/index.js'
 import type { WAMessage, WAMessageKey } from '../Types'
 import { generateMessageIDV2 } from './generics'
@@ -141,6 +142,80 @@ export const buildRichContextInfo = (quoted?: Quotable): proto.IContextInfo => {
 	return ctxInfo
 }
 
+export const botMetadataSignature = (): Uint8Array => randomBytes(64)
+
+export const botMetadataCertificate = (length = 685): Uint8Array => {
+	const certificate = randomBytes(length)
+	certificate[0] = 48
+	certificate[1] = 130
+	return certificate
+}
+
+const CODE_HIGHLIGHT_NAME: Record<number, string> = {
+	[CodeHighlightType.DEFAULT]: 'DEFAULT',
+	[CodeHighlightType.KEYWORD]: 'KEYWORD',
+	[CodeHighlightType.METHOD]: 'METHOD',
+	[CodeHighlightType.STRING]: 'STRING',
+	[CodeHighlightType.NUMBER]: 'NUMBER',
+	[CodeHighlightType.COMMENT]: 'COMMENT'
+}
+
+// Espejo del "unified response" que arma el propio WhatsApp para renderizar tablas/código en mensajes
+// de bots AI (Meta AI). submessages solo no basta en algunos clientes; esto rellena unifiedResponse.data.
+export const buildUnifiedResponse = (submessages: proto.IAIRichResponseSubMessage[], uuid?: string) => ({
+	response_id: uuid || randomUUID(),
+	sections: submessages.map(submessage => {
+		switch (submessage.messageType) {
+			case RichSubMessageType.CODE: {
+				const codeMetadata = submessage.codeMetadata!
+				return {
+					view_model: {
+						primitive: {
+							language: codeMetadata.codeLanguage,
+							code_blocks: (codeMetadata.codeBlocks || []).map(block => ({
+								content: block.codeContent,
+								type: CODE_HIGHLIGHT_NAME[block.highlightType as number] || 'DEFAULT'
+							})),
+							__typename: 'GenAICodeUXPrimitive'
+						},
+						__typename: 'GenAISingleLayoutViewModel'
+					}
+				}
+			}
+			case RichSubMessageType.TABLE: {
+				const tableMetadata = submessage.tableMetadata!
+				return {
+					view_model: {
+						primitive: {
+							title: tableMetadata.title,
+							rows: (tableMetadata.rows || []).map(row => ({
+								is_header: row.isHeading,
+								cells: row.items,
+								markdown_cells: (row.items || []).map(item => ({ text: item }))
+							})),
+							__typename: 'GenATableUXPrimitive'
+						},
+						__typename: 'GenAISingleLayoutViewModel'
+					}
+				}
+			}
+			case RichSubMessageType.TEXT:
+				return {
+					view_model: {
+						primitive: {
+							text: submessage.messageText,
+							inline_entities: submessage.inlineEntities || [],
+							__typename: 'GenAIMarkdownTextUXPrimitive'
+						},
+						__typename: 'GenAISingleLayoutViewModel'
+					}
+				}
+			default:
+				return {}
+		}
+	})
+})
+
 export const buildBotForwardedMessage = (
 	submessages: proto.IAIRichResponseSubMessage[],
 	contextInfo: proto.IContextInfo,
@@ -154,9 +229,25 @@ export const buildBotForwardedMessage = (
 
 	if (unifiedResponse) {
 		richResponse.unifiedResponse = unifiedResponse
+	} else {
+		richResponse.unifiedResponse = { data: Buffer.from(JSON.stringify(buildUnifiedResponse(submessages))) }
 	}
 
 	return {
+		messageContextInfo: {
+			botMetadata: {
+				verificationMetadata: {
+					proofs: [
+						{
+							certificateChain: [botMetadataCertificate(), botMetadataCertificate(892)],
+							version: 1,
+							useCase: 1,
+							signature: botMetadataSignature()
+						}
+					]
+				}
+			}
+		} as any,
 		botForwardedMessage: {
 			message: {
 				richResponseMessage: richResponse
@@ -427,4 +518,5 @@ export const generateRichMessageContent = (
 	const ctxInfo = buildRichContextInfo(quoted)
 	return { message: buildBotForwardedMessage(submessages, ctxInfo), messageId: generateMessageIDV2() }
 								   }
-	
+
+									 
