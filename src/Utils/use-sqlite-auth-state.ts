@@ -3,7 +3,7 @@ import type { AuthenticationCreds, AuthenticationState, SignalDataTypeMap } from
 import { initAuthCreds } from './auth-utils.js'
 import { BufferJSON } from './generics.js'
 
-import type DatabaseCtor from 'better-sqlite3'
+import type DatabaseCtor from 'infinitysqlite'
 
 type SqliteDatabase = InstanceType<typeof DatabaseCtor>
 
@@ -15,14 +15,14 @@ export type SqliteAuthStateOptions =
 			database: SqliteDatabase
 	  }
 
-async function loadBetterSqlite3(): Promise<typeof DatabaseCtor> {
+async function loadInfinitySqlite(): Promise<typeof DatabaseCtor> {
 	try {
 		
-		const mod: any = await import('better-sqlite3')
+		const mod: any = await import('infinitysqlite')
 		return mod.default ?? mod
 	} catch (err) {
 		const helpful = new Error(
-			'`better-sqlite3` is required for `useSqliteAuthState`. Install it as a peer dependency: `npm install better-sqlite3` (or `yarn add better-sqlite3`).'
+			'`infinitysqlite` is required for `useSqliteAuthState`. Install it as a peer dependency: `npm install infinitysqlite` (or `yarn add infinitysqlite`).'
 		)
 		
 		;(helpful as any).cause = err
@@ -53,7 +53,7 @@ export async function useSqliteAuthState(
 	if ('database' in opts) {
 		db = opts.database
 	} else {
-		const Database = await loadBetterSqlite3()
+		const Database = await loadInfinitySqlite()
 		db = new Database(opts.dbPath)
 	}
 
@@ -149,4 +149,4 @@ export async function useSqliteAuthState(
 			} catch {}
 		}
 	}
-}
+								 }
