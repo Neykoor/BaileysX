@@ -1,7 +1,7 @@
 {
   "name": "@neykoor/baileys",
   "type": "module",
-  "version": "7.0.13-rc15",
+  "version": "7.0.14-rc15",
   "description": "A WebSockets library for interacting with WhatsApp Web",
   "keywords": [
     "whatsapp",
