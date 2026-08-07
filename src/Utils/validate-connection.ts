@@ -37,7 +37,7 @@ const getUserAgent = (config: SocketConfig): proto.ClientPayload.IUserAgent => {
 
 const PLATFORM_MAP = {
 	'Mac OS': proto.ClientPayload.WebInfo.WebSubPlatform.DARWIN,
-	Windows: proto.ClientPayload.WebInfo.WebSubPlatform.WIN32
+	Windows: proto.ClientPayload.WebInfo.WebSubPlatform.WIN_HYBRID
 }
 
 const getWebInfo = (config: SocketConfig): proto.ClientPayload.IWebInfo => {
@@ -261,4 +261,5 @@ export const encodeSignedDeviceIdentity = (account: proto.IADVSignedDeviceIdenti
 	return proto.ADVSignedDeviceIdentity.encode(account).finish()
 }
 
-		
+
+			
