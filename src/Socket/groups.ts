@@ -65,7 +65,7 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 	})
 	const inflightGroupMetadataFetches = new Map<string, Promise<GroupMetadata>>()
 
-	const getCachedGroupMetadata = async (jid: string): Promise<GroupMetadata | undefined> => {
+	const getCachedGroupMetadata = async (jid: string, maxAgeMs?: number): Promise<GroupMetadata | undefined> => {
 		if (cachedGroupMetadata) {
 			const cached = await cachedGroupMetadata(jid)
 			if (cached && Array.isArray(cached.participants)) {
@@ -75,6 +75,10 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 
 		const entry = groupMetadataCache.get(jid)
 		if (entry) {
+			if (typeof maxAgeMs === 'number' && Date.now() - entry.ts >= maxAgeMs) {
+				return undefined
+			}
+
 			return entry.data
 		}
 
@@ -155,8 +159,8 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 			content
 		})
 
-	const groupMetadata = async (jid: string) => {
-		const cached = await getCachedGroupMetadata(jid)
+	const groupMetadata = async (jid: string, maxAgeMs?: number) => {
+		const cached = await getCachedGroupMetadata(jid, maxAgeMs)
 		if (cached) {
 			return cached
 		}
@@ -605,3 +609,4 @@ export type GroupsSocket = ReturnType<typeof makeGroupsSocket>
 
 
 
+			  
