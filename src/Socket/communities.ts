@@ -1,7 +1,9 @@
 import { proto } from '../../WAProto/index.js'
+import type { LIDMappingStore } from '../Signal/lid-mapping'
 import {
 	type GroupMetadata,
 	type GroupParticipant,
+	type LIDMapping,
 	type ParticipantAction,
 	type SocketConfig,
 	type WAMessageKey,
@@ -17,8 +19,7 @@ import {
 	isLidUser,
 	isPnUser,
 	jidEncode,
-	jidNormalizedUser,
-	type LidPhoneCache
+	jidNormalizedUser
 } from '../WABinary'
 import { makeBusinessSocket } from './business'
 
@@ -39,7 +40,7 @@ export const makeCommunitiesSocket = (config: SocketConfig) => {
 
 	const communityMetadata = async (jid: string) => {
 		const result = await communityQuery(jid, 'get', [{ tag: 'query', attrs: { request: 'interactive' } }])
-		return extractCommunityMetadata(result, signalRepository.lidMapping.phoneCache)
+		return extractCommunityMetadata(result, signalRepository.lidMapping)
 	}
 
 	const resolveCommunityLidPhone = async (communityJid: string, lid: string): Promise<string | undefined> => {
@@ -84,7 +85,7 @@ export const makeCommunitiesSocket = (config: SocketConfig) => {
 						attrs: {},
 						content: [communityNode]
 					},
-					signalRepository.lidMapping.phoneCache
+					signalRepository.lidMapping
 				)
 				data[meta.id] = meta
 			}
@@ -405,7 +406,7 @@ export const makeCommunitiesSocket = (config: SocketConfig) => {
 		),
 		communityGetInviteInfo: async (code: string) => {
 			const results = await communityQuery('@g.us', 'get', [{ tag: 'invite', attrs: { code } }])
-			return extractCommunityMetadata(results, signalRepository.lidMapping.phoneCache)
+			return extractCommunityMetadata(results, signalRepository.lidMapping)
 		},
 		communityToggleEphemeral: async (jid: string, ephemeralExpiration: number) => {
 			const content: BinaryNode = ephemeralExpiration
@@ -431,7 +432,7 @@ export const makeCommunitiesSocket = (config: SocketConfig) => {
 	}
 }
 
-export const extractCommunityMetadata = (result: BinaryNode, phoneCache?: LidPhoneCache) => {
+export const extractCommunityMetadata = (result: BinaryNode, lidMapping?: LIDMappingStore) => {
 	const community = getBinaryNodeChild(result, 'community')!
 	const descChild = getBinaryNodeChild(community, 'description')
 	let desc: string | undefined
@@ -463,26 +464,38 @@ export const extractCommunityMetadata = (result: BinaryNode, phoneCache?: LidPho
 		isCommunityAnnounce: !!getBinaryNodeChild(community, 'default_sub_community'),
 		joinApprovalMode: !!getBinaryNodeChild(community, 'membership_approval_mode'),
 		memberAddMode,
-		participants: getBinaryNodeChildren(community, 'participant').map(({ attrs }) => {
-			const isLid = isLidUser(attrs.jid)
-			const hasPn = isPnUser(attrs.phone_number)
+		participants: (() => {
+			const lidPnPairs: LIDMapping[] = []
+			const participants = getBinaryNodeChildren(community, 'participant').map(({ attrs }) => {
+				const isLid = isLidUser(attrs.jid)
+				const hasPn = isPnUser(attrs.phone_number)
 
-			if (isLid && hasPn) {
-				phoneCache?.set(attrs.jid, attrs.phone_number)
-			} else if (isPnUser(attrs.jid) && isLidUser(attrs.lid)) {
-				phoneCache?.set(attrs.lid, attrs.jid)
+				if (isLid && hasPn) {
+					lidMapping?.phoneCache.set(attrs.jid, attrs.phone_number)
+					lidPnPairs.push({ lid: attrs.jid!, pn: attrs.phone_number! })
+				} else if (isPnUser(attrs.jid) && isLidUser(attrs.lid)) {
+					lidMapping?.phoneCache.set(attrs.lid, attrs.jid)
+					lidPnPairs.push({ lid: attrs.lid!, pn: attrs.jid! })
+				}
+
+				return {
+					id: attrs.jid!,
+					phoneNumber: isLid && hasPn ? attrs.phone_number : undefined,
+					lid: isLid ? attrs.jid : isPnUser(attrs.jid) && isLidUser(attrs.lid) ? attrs.lid : undefined,
+					admin: (attrs.type || null) as GroupParticipant['admin']
+				}
+			})
+
+			if (lidPnPairs.length) {
+				void lidMapping?.storeLIDPNMappings(lidPnPairs)
 			}
 
-			return {
-				id: attrs.jid!,
-				phoneNumber: isLid && hasPn ? attrs.phone_number : undefined,
-				lid: isLid ? attrs.jid : isPnUser(attrs.jid) && isLidUser(attrs.lid) ? attrs.lid : undefined,
-				admin: (attrs.type || null) as GroupParticipant['admin']
-			}
-		}),
+			return participants
+		})(),
 		ephemeralDuration: eph ? +eph : undefined,
 		addressingMode: getBinaryNodeChildString(community, 'addressing_mode')! as GroupMetadata['addressingMode']
 	}
 	return metadata
 				}
-						
+
+		
