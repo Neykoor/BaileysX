@@ -165,6 +165,7 @@ export class LIDMappingStore {
 	private async _getLIDsForPNsImpl(pns: string[]): Promise<LIDMapping[] | null> {
 		const usyncFetch: { [_: string]: number[] } = {}
 		const usyncFetchJid: { [_: string]: string } = {}
+		const usyncHostedPnUsers = new Set<string>()
 		const successfulPairs: { [_: string]: LIDMapping } = {}
 		const pending: Array<{ pn: string; pnUser: string; decoded: ReturnType<typeof jidDecode> }> = []
 
@@ -228,6 +229,7 @@ export class LIDMappingStore {
 					const device = decoded!.device || 0
 					let normalizedPn = jidNormalizedUser(pn)
 					if (isHostedPnUser(normalizedPn)) {
+						usyncHostedPnUsers.add(pnUser)
 						normalizedPn = `${pnUser}@s.whatsapp.net`
 					}
 
@@ -264,7 +266,7 @@ export class LIDMappingStore {
 						continue
 					}
 
-					const isHosted = isHostedPnUser(pair.pn) || isHostedPnUser(usyncFetchJid[pnUser])
+					const isHosted = isHostedPnUser(pair.pn) || usyncHostedPnUsers.has(pnUser)
 
 					for (const device of devices) {
 						const deviceSpecificLid = `${lidUser}${!!device ? `:${device}` : ``}@${isHosted ? 'hosted.lid' : 'lid'}`
@@ -377,3 +379,4 @@ export class LIDMappingStore {
 	}
 			}
 
+	
