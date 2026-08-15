@@ -24,11 +24,11 @@ export interface SqliteStoreApi {
 	bind: (ev: BaileysEventEmitter) => void
 	chats: {
 		get: (id: string) => Chat | undefined
-		all: () => Chat[]
+		all: (opts?: { limit?: number; offset?: number }) => Chat[]
 	}
 	contacts: {
 		get: (id: string) => Contact | undefined
-		all: () => Contact[]
+		all: (opts?: { limit?: number; offset?: number }) => Contact[]
 	}
 	groupMetadata: {
 		get: (id: string) => GroupMetadata | undefined
@@ -101,12 +101,16 @@ export async function makeSqliteStore(opts: SqliteStoreOptions): Promise<SqliteS
 		),
 		chatGet: db.prepare<[string], { value: string }>('SELECT value FROM chats WHERE id = ?'),
 		chatAll: db.prepare<[], { value: string }>('SELECT value FROM chats'),
+		chatAllPage: db.prepare<[number, number], { value: string }>('SELECT value FROM chats ORDER BY id LIMIT ? OFFSET ?'),
 		chatDelete: db.prepare<[string]>('DELETE FROM chats WHERE id = ?'),
 		contactUpsert: db.prepare<[string, string]>(
 			'INSERT INTO contacts (id, value) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET value = excluded.value'
 		),
 		contactGet: db.prepare<[string], { value: string }>('SELECT value FROM contacts WHERE id = ?'),
 		contactAll: db.prepare<[], { value: string }>('SELECT value FROM contacts'),
+		contactAllPage: db.prepare<[number, number], { value: string }>(
+			'SELECT value FROM contacts ORDER BY id LIMIT ? OFFSET ?'
+		),
 		groupUpsert: db.prepare<[string, string]>(
 			'INSERT INTO group_metadata (id, value) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET value = excluded.value'
 		),
@@ -159,6 +163,19 @@ export async function makeSqliteStore(opts: SqliteStoreOptions): Promise<SqliteS
 			}
 		})
 		tx(contacts)
+	}
+
+	const upsertGroups = (groups: GroupMetadata[]) => {
+		const tx = db.transaction((items: GroupMetadata[]) => {
+			for (const group of items) {
+				if (!group.id) {
+					continue
+				}
+
+				stmts.groupUpsert.run(group.id, toJson(group))
+			}
+		})
+		tx(groups)
 	}
 
 	const upsertMessages = (messages: WAMessage[]) => {
@@ -263,6 +280,10 @@ export async function makeSqliteStore(opts: SqliteStoreOptions): Promise<SqliteS
 			}
 		})
 
+		ev.on('groups.upsert', newGroups => {
+			upsertGroups(newGroups)
+		})
+
 		ev.on('groups.update', updates => {
 			for (const update of updates) {
 				if (!update.id) {
@@ -285,14 +306,24 @@ export async function makeSqliteStore(opts: SqliteStoreOptions): Promise<SqliteS
 				const row = stmts.chatGet.get(id)
 				return row ? fromJson<Chat>(row.value) : undefined
 			},
-			all: (): Chat[] => stmts.chatAll.all().map((r: { value: string }) => fromJson<Chat>(r.value))
+			all: (opts?: { limit?: number; offset?: number }): Chat[] => {
+				const rows =
+					opts?.limit !== undefined ? stmts.chatAllPage.all(opts.limit, opts.offset ?? 0) : stmts.chatAll.all()
+				return rows.map((r: { value: string }) => fromJson<Chat>(r.value))
+			}
 		},
 		contacts: {
 			get: (id: string): Contact | undefined => {
 				const row = stmts.contactGet.get(id)
 				return row ? fromJson<Contact>(row.value) : undefined
 			},
-			all: (): Contact[] => stmts.contactAll.all().map((r: { value: string }) => fromJson<Contact>(r.value))
+			all: (opts?: { limit?: number; offset?: number }): Contact[] => {
+				const rows =
+					opts?.limit !== undefined
+						? stmts.contactAllPage.all(opts.limit, opts.offset ?? 0)
+						: stmts.contactAll.all()
+				return rows.map((r: { value: string }) => fromJson<Contact>(r.value))
+			}
 		},
 		groupMetadata: {
 			get: (id: string): GroupMetadata | undefined => {
@@ -351,5 +382,6 @@ export async function makeSqliteStore(opts: SqliteStoreOptions): Promise<SqliteS
 }
 
 export type SqliteStore = Awaited<ReturnType<typeof makeSqliteStore>>
+
 
 			
