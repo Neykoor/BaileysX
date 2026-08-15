@@ -497,8 +497,17 @@ export const makeInMemoryStore = (config: InMemoryStoreConfig = {}) => {
 
 			return groupMetadata[jid]
 		},
-		fetchMessageReceipts: async ({ remoteJid, id }: { remoteJid: string; id: string }) => {
-			const list = messages[remoteJid]
+		fetchMessageReceipts: async ({
+			remoteJid,
+			remoteJidAlt,
+			id
+		}: {
+			remoteJid: string
+			remoteJidAlt?: string
+			id: string
+		}) => {
+			const jid = jidNormalizedUser(remoteJidAlt || remoteJid)
+			const list = messages[jid]
 			const msg = list?.get(id)
 			return msg?.userReceipt
 		},
@@ -520,3 +529,4 @@ export const makeInMemoryStore = (config: InMemoryStoreConfig = {}) => {
 
 export type InMemoryStore = ReturnType<typeof makeInMemoryStore>
 
+			
