@@ -59,6 +59,27 @@ sock.ev.on('connection.update', (update) => {
 
 Internamente, `sock` usa `makeLibSignalRepository` (`src/Signal/libsignal.ts`) para cifrar/descifrar sesiones y mensajes de grupo con `libsignal-node-ts`, con el mismo API que antes.
 
+## 💾 Store y Auth State con SQLite
+
+`BaileysX` incluye `makeSqliteStore` (`src/Store/make-sqlite-store.ts`) y `useSqliteAuthState` (`src/Utils/use-sqlite-auth-state.ts`) para persistir chats, contactos, mensajes y credenciales en SQLite en vez de JSON plano.
+
+**`infinitysqlite` NO viene incluido con BaileysX.** Es un `peerDependency` **opcional** — no está en `dependencies`, así que instalar `baileysx` no lo instala automáticamente. Si tu proyecto usa `makeSqliteStore` o `useSqliteAuthState`, tenés que instalarlo aparte en tu propio `package.json`:
+
+```bash
+npm install infinitysqlite
+# o
+yarn add infinitysqlite
+```
+
+Si no está instalado, ambas funciones fallan en runtime (no en install ni en build) con un error explícito indicando que falta la dependencia. Esto es intencional, mismo patrón que `sharp`, `jimp` y `@napi-rs/image`: dependencias nativas/pesadas quedan fuera del bundle para no forzarlas a quien no las necesita.
+
+```ts
+import { makeSqliteStore, useSqliteAuthState } from 'baileysx'
+
+const store = await makeSqliteStore({ dbPath: './store.db' })
+const { state, saveCreds } = await useSqliteAuthState({ dbPath: './auth.db' })
+```
+
 ## 🔘 Botones interactivos
 
 `sock.sendMessage` detecta la propiedad `buttons` y arma un `interactiveMessage` con `nativeFlowMessage` automáticamente — no hace falta construir el payload de WhatsApp a mano.
