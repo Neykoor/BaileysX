@@ -1,7 +1,8 @@
 import { Boom } from '@neykoor/boom'
 import { LRUCache } from 'lru-cache'
 import { proto } from '../../WAProto/index.js'
-import type { GroupMetadata, GroupParticipant, ParticipantAction, SocketConfig, WAMessageKey } from '../Types'
+import type { LIDMappingStore } from '../Signal/lid-mapping'
+import type { GroupMetadata, GroupParticipant, LIDMapping, ParticipantAction, SocketConfig, WAMessageKey } from '../Types'
 import { WAMessageAddressingMode, WAMessageStubType } from '../Types'
 import { generateMessageIDV2, unixTimestampSeconds } from '../Utils'
 import {
@@ -12,8 +13,7 @@ import {
 	isLidUser,
 	isPnUser,
 	jidEncode,
-	jidNormalizedUser,
-	type LidPhoneCache
+	jidNormalizedUser
 } from '../WABinary'
 import { makeChatsSocket } from './chats'
 
@@ -80,7 +80,7 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 
 		try {
 			const result = await groupQuery(jid, 'get', [{ tag: 'query', attrs: { request: 'interactive' } }])
-			const meta = extractGroupMetadata(result, signalRepository.lidMapping.phoneCache)
+			const meta = extractGroupMetadata(result, signalRepository.lidMapping)
 			setCachedGroupMetadata(jid, meta)
 			ev.emit('groups.update', [meta])
 		} catch (err) {
@@ -139,7 +139,7 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 
 		const fetchPromise = (async () => {
 			const result = await groupQuery(jid, 'get', [{ tag: 'query', attrs: { request: 'interactive' } }])
-			const meta = extractGroupMetadata(result, signalRepository.lidMapping.phoneCache)
+			const meta = extractGroupMetadata(result, signalRepository.lidMapping)
 			setCachedGroupMetadata(jid, meta)
 			return meta
 		})()
@@ -195,7 +195,7 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 						attrs: {},
 						content: [groupNode]
 					},
-					signalRepository.lidMapping.phoneCache
+					signalRepository.lidMapping
 				)
 				data[meta.id] = meta
 			}
@@ -239,7 +239,7 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 					}))
 				}
 			])
-			return extractGroupMetadata(result, signalRepository.lidMapping.phoneCache)
+			return extractGroupMetadata(result, signalRepository.lidMapping)
 		},
 		groupLeave: async (id: string) => {
 			await groupQuery('@g.us', 'set', [
@@ -402,7 +402,7 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 		),
 		groupGetInviteInfo: async (code: string) => {
 			const results = await groupQuery('@g.us', 'get', [{ tag: 'invite', attrs: { code } }])
-			return extractGroupMetadata(results, signalRepository.lidMapping.phoneCache)
+			return extractGroupMetadata(results, signalRepository.lidMapping)
 		},
 		groupToggleEphemeral: async (jid: string, ephemeralExpiration: number) => {
 			const content: BinaryNode = ephemeralExpiration
@@ -480,7 +480,7 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 	}
 }
 
-export const extractGroupMetadata = (result: BinaryNode, phoneCache?: LidPhoneCache) => {
+export const extractGroupMetadata = (result: BinaryNode, lidMapping?: LIDMappingStore) => {
 	const group = getBinaryNodeChild(result, 'group')
 	if (!group) {
 
@@ -545,24 +545,35 @@ export const extractGroupMetadata = (result: BinaryNode, phoneCache?: LidPhoneCa
 		isCommunityAnnounce: !!getBinaryNodeChild(group, 'default_sub_group'),
 		joinApprovalMode: !!getBinaryNodeChild(group, 'membership_approval_mode'),
 		memberAddMode,
-		participants: getBinaryNodeChildren(group, 'participant').map(({ attrs }) => {
-			const isLid = isLidUser(attrs.jid)
-			const hasPn = isPnUser(attrs.phone_number)
+		participants: (() => {
+			const lidPnPairs: LIDMapping[] = []
+			const participants = getBinaryNodeChildren(group, 'participant').map(({ attrs }) => {
+				const isLid = isLidUser(attrs.jid)
+				const hasPn = isPnUser(attrs.phone_number)
 
-			if (isLid && hasPn) {
-				phoneCache?.set(attrs.jid, attrs.phone_number)
-			} else if (isPnUser(attrs.jid) && isLidUser(attrs.lid)) {
-				phoneCache?.set(attrs.lid, attrs.jid)
+				if (isLid && hasPn) {
+					lidMapping?.phoneCache.set(attrs.jid, attrs.phone_number)
+					lidPnPairs.push({ lid: attrs.jid!, pn: attrs.phone_number! })
+				} else if (isPnUser(attrs.jid) && isLidUser(attrs.lid)) {
+					lidMapping?.phoneCache.set(attrs.lid, attrs.jid)
+					lidPnPairs.push({ lid: attrs.lid!, pn: attrs.jid! })
+				}
+
+				return {
+					id: attrs.jid!,
+					phoneNumber: isLid && hasPn ? attrs.phone_number : undefined,
+					lid: isLid ? attrs.jid : isPnUser(attrs.jid) && isLidUser(attrs.lid) ? attrs.lid : undefined,
+					username: attrs.participant_username || attrs.username || undefined,
+					admin: (attrs.type || null) as GroupParticipant['admin']
+				}
+			})
+
+			if (lidPnPairs.length) {
+				void lidMapping?.storeLIDPNMappings(lidPnPairs)
 			}
 
-			return {
-				id: attrs.jid!,
-				phoneNumber: isLid && hasPn ? attrs.phone_number : undefined,
-				lid: isLid ? attrs.jid : isPnUser(attrs.jid) && isLidUser(attrs.lid) ? attrs.lid : undefined,
-				username: attrs.participant_username || attrs.username || undefined,
-				admin: (attrs.type || null) as GroupParticipant['admin']
-			}
-		}),
+			return participants
+		})(),
 		ephemeralDuration: eph ? +eph : undefined
 	}
 	return metadata
@@ -573,4 +584,5 @@ export type GroupsSocket = ReturnType<typeof makeGroupsSocket>
 
 
 
-			  
+
+		
