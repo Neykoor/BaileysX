@@ -242,7 +242,13 @@ export class LIDMappingStore {
 		}
 
 		if (Object.keys(usyncFetch).length > 0) {
-			const result = await this.pnToLIDFunc?.(Object.values(usyncFetchJid))
+			let result: LIDMapping[] | undefined
+			try {
+				result = await this.pnToLIDFunc?.(Object.values(usyncFetchJid))
+			} catch (error) {
+				this.logger.warn({ error }, 'USync fetch for pending PNs threw, falling back to partial results')
+			}
+
 			if (result && result.length > 0) {
 				await this.storeLIDPNMappings(result)
 				for (const pair of result) {
@@ -370,4 +376,4 @@ export class LIDMappingStore {
 		this.mappingCache.clear()
 	}
 			}
-			
+
