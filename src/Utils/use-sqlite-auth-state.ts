@@ -79,6 +79,20 @@ export async function useSqliteAuthState(
 		clearKeys: db.prepare('DELETE FROM signal_keys')
 	}
 
+	const keyBatchSelectCache = new Map<number, ReturnType<typeof db.prepare<[string, ...string[]], { id: string; value: string }>>>()
+	const getKeyBatchSelect = (count: number) => {
+		let stmt = keyBatchSelectCache.get(count)
+		if (!stmt) {
+			const placeholders = new Array(count).fill('?').join(',')
+			stmt = db.prepare<[string, ...string[]], { id: string; value: string }>(
+				`SELECT id, value FROM signal_keys WHERE type = ? AND id IN (${placeholders})`
+			)
+			keyBatchSelectCache.set(count, stmt)
+		}
+
+		return stmt
+	}
+
 	const loadCreds = (): AuthenticationCreds => {
 		const row = stmts.credsSelect.get(CREDS_ROW_KEY)
 		if (!row) {
@@ -101,17 +115,26 @@ export async function useSqliteAuthState(
 			keys: {
 				get: async (type, ids) => {
 					const data: { [_: string]: SignalDataTypeMap[typeof type] } = {}
-					if (closed || !db.open) return data
-					for (const id of ids) {
-						const row = stmts.keySelect.get(type, id)
-						if (row) {
-							let value = JSON.parse(row.value, BufferJSON.reviver)
-							if (type === 'app-state-sync-key' && value) {
-								value = proto.Message.AppStateSyncKeyData.fromObject(value)
-							}
+					if (closed || !db.open || ids.length === 0) return data
 
-							data[id] = value
+					const parseRow = (id: string, rawValue: string) => {
+						let value = JSON.parse(rawValue, BufferJSON.reviver)
+						if (type === 'app-state-sync-key' && value) {
+							value = proto.Message.AppStateSyncKeyData.fromObject(value)
 						}
+
+						data[id] = value
+					}
+
+					if (ids.length === 1) {
+						const row = stmts.keySelect.get(type, ids[0]!)
+						if (row) parseRow(ids[0]!, row.value)
+						return data
+					}
+
+					const rows = getKeyBatchSelect(ids.length).all(type, ...ids)
+					for (const row of rows) {
+						parseRow(row.id, row.value)
 					}
 
 					return data
@@ -149,4 +172,4 @@ export async function useSqliteAuthState(
 			} catch {}
 		}
 	}
-								 }
+}
