@@ -611,6 +611,5 @@ export class Smgss {
 		await this.relayMessage(jid, finalMsg, { messageId: msgId })
 		return { key: { id: msgId, remoteJid: jid, fromMe: true }, message: finalMsg }
 	}
-          }
-
-
+			}
+						
