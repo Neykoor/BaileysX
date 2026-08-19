@@ -390,8 +390,6 @@ export const makeNewsletterSocket = (config: SocketConfig) => {
 			return data
 		},
 
-		newsletterFollow: (jid: string) => executeWMexQueryIgnoreResponse({ newsletter_id: jid }, QueryIds.FOLLOW),
-		newsletterUnfollow: (jid: string) => executeWMexQueryIgnoreResponse({ newsletter_id: jid }, QueryIds.UNFOLLOW),
 		newsletterMute: (jid: string) => executeWMexQueryIgnoreResponse({ newsletter_id: jid }, QueryIds.MUTE),
 		newsletterUnmute: (jid: string) => executeWMexQueryIgnoreResponse({ newsletter_id: jid }, QueryIds.UNMUTE),
 
@@ -523,3 +521,4 @@ export const extractNewsletterMetadata = (node: any, isCreate?: boolean): Newsle
 }
 
 export type NewsletterSocket = ReturnType<typeof makeNewsletterSocket>
+		
