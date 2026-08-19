@@ -203,6 +203,16 @@ export class LIDMappingStore {
 				continue
 			}
 
+			const phoneCachedLid = this.phoneCache.getLidForPhone(pn)
+			const phoneCachedLidUser = phoneCachedLid ? jidDecode(phoneCachedLid)?.user : undefined
+			if (phoneCachedLidUser) {
+				this.mappingCache.set(`pn:${pnUser}`, phoneCachedLidUser)
+				this.mappingCache.set(`lid:${phoneCachedLidUser}`, pnUser)
+				if (addResolvedPair(pn, decoded, phoneCachedLidUser)) {
+					continue
+				}
+			}
+
 			pending.push({ pn, pnUser, decoded })
 		}
 
@@ -346,6 +356,15 @@ export class LIDMappingStore {
 				continue
 			}
 
+			const phoneCached = this.phoneCache.getPhoneForLid(lid)
+			const phoneCachedUser = phoneCached ? jidDecode(phoneCached)?.user : undefined
+			if (phoneCachedUser) {
+				this.mappingCache.set(`lid:${lidUser}`, phoneCachedUser)
+				this.mappingCache.set(`pn:${phoneCachedUser}`, lidUser)
+				addResolvedPair(lid, decoded, phoneCachedUser)
+				continue
+			}
+
 			pending.push({ lid, lidUser, decoded })
 		}
 
@@ -379,4 +398,5 @@ export class LIDMappingStore {
 	}
 			}
 
-	
+
+									
