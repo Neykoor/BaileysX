@@ -137,6 +137,7 @@ export type LidPhoneCache = {
 	get(key: string | undefined): string | undefined
 	getLidForPhone(phoneJid: string | undefined): string | undefined
 	getPhoneForLid(lid: string | undefined): string | undefined
+	clear(): void
 	readonly size: number
 }
 
@@ -171,8 +172,11 @@ export function createLidPhoneCache(): LidPhoneCache {
 			const val = cache.get(lid)
 			return val && (isPnUser(val) || isHostedPnUser(val)) ? val : undefined
 		},
+		clear() {
+			cache.clear()
+		},
 		get size() {
 			return cache.size
 		}
 	}
-}
+	}
