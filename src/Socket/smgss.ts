@@ -58,8 +58,13 @@ export class Smgss {
 		if (!this.config.emitOwnEvents || !this.messageMutex || !this.upsertMessage) return
 		const mutex = this.messageMutex
 		const upsert = this.upsertMessage
+		const logger = this.config.logger
 		process.nextTick(async () => {
-			await mutex.mutex(() => upsert(msg, 'append'))
+			try {
+				await mutex.mutex(() => upsert(msg, 'append'))
+			} catch (err) {
+				logger?.error?.(`smgss.emitSent: failed to upsert sent message — ${err}`)
+			}
 		})
 	}
 
@@ -612,4 +617,5 @@ export class Smgss {
 		return { key: { id: msgId, remoteJid: jid, fromMe: true }, message: finalMsg }
 	}
 			}
-						
+
+			
