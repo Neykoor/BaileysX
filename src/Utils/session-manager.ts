@@ -81,6 +81,13 @@ export const makeSessionManager = (opts: SessionManagerOptions) => {
 	}
 
 	const stop = async (id: string) => {
+		const inflight = pending.get(id)
+		if (inflight) {
+			const entry = await inflight
+			await entry.stop()
+			return
+		}
+
 		const entry = sessions.get(id)
 		if (entry) {
 			await entry.stop()
@@ -88,7 +95,8 @@ export const makeSessionManager = (opts: SessionManagerOptions) => {
 	}
 
 	const stopAll = async () => {
-		await Promise.all(Array.from(sessions.keys()).map(id => stop(id)))
+		const ids = new Set([...sessions.keys(), ...pending.keys()])
+		await Promise.all(Array.from(ids).map(id => stop(id)))
 	}
 
 	const get = (id: string) => sessions.get(id)
