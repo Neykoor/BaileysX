@@ -395,8 +395,12 @@ export class LIDMappingStore {
 
 	close(): void {
 		this.mappingCache.clear()
+		this.phoneCache.clear()
+		this.inflightLIDLookups.clear()
+		this.inflightPNLookups.clear()
 	}
 			}
 
 
-									
+
+			
