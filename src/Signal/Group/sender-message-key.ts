@@ -7,7 +7,8 @@ export class SenderMessageKey {
 	private readonly seed: Uint8Array
 
 	constructor(iteration: number, seed: Uint8Array) {
-		const derivative = deriveSecrets(seed, Buffer.alloc(32), Buffer.from('WhisperGroup'))
+		const seedBuffer = Buffer.from(seed)
+		const derivative = deriveSecrets(seedBuffer, Buffer.alloc(32), Buffer.from('WhisperGroup'))
 		const first = derivative[0]
 		const second = derivative[1]
 		if (!first || !second) {
@@ -21,7 +22,7 @@ export class SenderMessageKey {
 		this.iv = Buffer.from(first.slice(0, 16))
 		this.cipherKey = Buffer.from(keys.buffer)
 		this.iteration = iteration
-		this.seed = seed
+		this.seed = seedBuffer
 	}
 
 	public getIteration(): number {
