@@ -100,6 +100,14 @@ export const makeNewsletterSocket = (config: SocketConfig) => {
 		}
 	}
 
+	const lruSet = <V>(cache: Map<string, V>, key: string, value: V) => {
+		if (cache.has(key)) {
+			cache.delete(key)
+		}
+
+		cache.set(key, value)
+	}
+
 	const getFromMetaCache = (jid: string): NewsletterMetadata | undefined => {
 		if (cacheTtl <= 0) {
 			return undefined
@@ -118,7 +126,7 @@ export const makeNewsletterSocket = (config: SocketConfig) => {
 			return
 		}
 
-		newsletterMetaCache.set(jid, { data, ts: Date.now() })
+		lruSet(newsletterMetaCache, jid, { data, ts: Date.now() })
 		pruneCache(newsletterMetaCache)
 	}
 
@@ -142,7 +150,7 @@ export const makeNewsletterSocket = (config: SocketConfig) => {
 			next.description = patch.description
 		}
 
-		newsletterMetaCache.set(jid, { data: next, ts: existing.ts })
+		lruSet(newsletterMetaCache, jid, { data: next, ts: existing.ts })
 	}
 
 	ev.on('newsletter-settings.update', ({ id, update }) => {
@@ -269,7 +277,7 @@ export const makeNewsletterSocket = (config: SocketConfig) => {
 			if (parsed?.id) {
 				setMetaCache(parsed.id, parsed)
 				if (type === 'invite') {
-					inviteToNewsletterJidCache.set(key, { jid: parsed.id, ts: Date.now() })
+					lruSet(inviteToNewsletterJidCache, key, { jid: parsed.id, ts: Date.now() })
 					pruneCache(inviteToNewsletterJidCache)
 				}
 			}
@@ -521,4 +529,5 @@ export const extractNewsletterMetadata = (node: any, isCreate?: boolean): Newsle
 }
 
 export type NewsletterSocket = ReturnType<typeof makeNewsletterSocket>
+
 		
