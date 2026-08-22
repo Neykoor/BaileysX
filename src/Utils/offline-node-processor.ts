@@ -19,14 +19,36 @@ export function makeOfflineNodeProcessor(
 	batchSize = 10
 ) {
 	const nodes: OfflineNode[] = []
+	let head = 0
 	let isProcessing = false
+
+	const dequeue = (): OfflineNode | undefined => {
+		if (head >= nodes.length) {
+			return undefined
+		}
+
+		const item = nodes[head]
+		nodes[head] = undefined as unknown as OfflineNode
+		head++
+
+		// compact once the consumed prefix is at least half the array, so we
+		// don't keep an ever-growing array of empty slots for large offline backlogs
+		if (head > 64 && head * 2 >= nodes.length) {
+			nodes.splice(0, head)
+			head = 0
+		}
+
+		return item
+	}
+
+	const pending = () => nodes.length - head
 
 	const runLoop = () => {
 		if (isProcessing) {
 			return
 		}
 
-		if (!nodes.length || !deps.isWsOpen()) {
+		if (!pending() || !deps.isWsOpen()) {
 			return
 		}
 
@@ -35,8 +57,8 @@ export function makeOfflineNodeProcessor(
 		const promise = async () => {
 			let processedInBatch = 0
 
-			while (nodes.length && deps.isWsOpen()) {
-				const { type, node } = nodes.shift()!
+			while (pending() && deps.isWsOpen()) {
+				const { type, node } = dequeue()!
 
 				const nodeProcessor = nodeProcessorMap.get(type)
 
@@ -56,7 +78,7 @@ export function makeOfflineNodeProcessor(
 
 			isProcessing = false
 
-			if (nodes.length && deps.isWsOpen()) {
+			if (pending() && deps.isWsOpen()) {
 				runLoop()
 			}
 		}
