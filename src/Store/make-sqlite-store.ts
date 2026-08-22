@@ -6,6 +6,7 @@ import type { GroupMetadata } from '../Types/GroupMetadata'
 import type { WAMessage, WAMessageKey } from '../Types/Message'
 import { jidNormalizedUser } from '../WABinary/index.js'
 import { BufferJSON } from '../Utils/generics.js'
+import { updateMessageWithEventResponse, updateMessageWithPollUpdate } from '../Utils/messages.js'
 
 import type DatabaseCtor from 'infinitysqlite'
 
@@ -262,7 +263,18 @@ export async function makeSqliteStore(opts: SqliteStoreOptions): Promise<SqliteS
 					continue
 				}
 
-				const merged = Object.assign({}, fromJson<WAMessage>(row.value), update)
+				const existing = fromJson<WAMessage>(row.value)
+				const { eventResponses, pollUpdates, ...rest } = update
+				const merged = Object.assign({}, existing, rest)
+
+				for (const response of eventResponses || []) {
+					updateMessageWithEventResponse(merged, response)
+				}
+
+				for (const vote of pollUpdates || []) {
+					updateMessageWithPollUpdate(merged, vote)
+				}
+
 				stmts.msgUpsert.run(jid, key.id, Number(merged.messageTimestamp || 0), toJson(merged))
 			}
 		})
@@ -382,6 +394,7 @@ export async function makeSqliteStore(opts: SqliteStoreOptions): Promise<SqliteS
 }
 
 export type SqliteStore = Awaited<ReturnType<typeof makeSqliteStore>>
+
 
 
 			
