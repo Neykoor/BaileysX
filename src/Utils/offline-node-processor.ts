@@ -31,8 +31,6 @@ export function makeOfflineNodeProcessor(
 		nodes[head] = undefined as unknown as OfflineNode
 		head++
 
-		// compact once the consumed prefix is at least half the array, so we
-		// don't keep an ever-growing array of empty slots for large offline backlogs
 		if (head > 64 && head * 2 >= nodes.length) {
 			nodes.splice(0, head)
 			head = 0
