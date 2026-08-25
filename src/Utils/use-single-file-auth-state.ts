@@ -1,4 +1,5 @@
 import { Mutex } from 'async-mutex'
+import { writeFileSync as writeFileSyncFs, renameSync } from 'fs'
 import { readFile, rename, stat, writeFile } from 'fs/promises'
 import { LRUCache } from 'lru-cache'
 import { proto } from '../../WAProto/index.js'
@@ -12,7 +13,7 @@ const FLUSH_TIMEOUT_MS = 3000
 export const useSingleFileAuthState = async (
 	fileName: string
 ): Promise<{ state: AuthenticationState; saveCreds: () => void }> => {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	
 	const cache = new LRUCache<string, any>({
 		max: 20000,
 		ttl: 1000 * DEFAULT_CACHE_TTLS.SIGNAL_STORE,
@@ -23,7 +24,7 @@ export const useSingleFileAuthState = async (
 
 	const mutex = new Mutex()
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	
 	let fileData: { [_: string]: any } = {}
 	let isLoaded = false
 	let flushTimeout: NodeJS.Timeout | null = null
@@ -65,7 +66,26 @@ export const useSingleFileAuthState = async (
 		}, FLUSH_TIMEOUT_MS)
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const flushSync = () => {
+		if (!isLoaded) {
+			return
+		}
+
+		if (flushTimeout) {
+			clearTimeout(flushTimeout)
+			flushTimeout = null
+		}
+
+		try {
+			const tempFile = fileName + '.temp'
+			writeFileSyncFs(tempFile, JSON.stringify(fileData, BufferJSON.replacer))
+			renameSync(tempFile, fileName)
+		} catch {}
+	}
+
+	process.on('exit', flushSync)
+
+	
 	const writeKey = (keyName: string, value: any) => {
 		cache.set(keyName, value)
 		fileData[keyName] = value
@@ -125,4 +145,4 @@ export const useSingleFileAuthState = async (
 		},
 		saveCreds: () => writeKey('creds', creds)
 	}
-}
+		}
