@@ -23,7 +23,12 @@ export const makeLoggerWithSinks = (opts: LoggerWithSinksOptions): ILogger => {
 		}
 
 		return {
-			level: base.level,
+			get level() {
+				return base.level
+			},
+			set level(value: string) {
+				base.level = value
+			},
 			child: (bindings: Record<string, unknown>) => wrap(base.child(bindings)),
 			trace: (obj, msg) => dispatch('trace', obj, msg),
 			debug: (obj, msg) => dispatch('debug', obj, msg),
