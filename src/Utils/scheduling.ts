@@ -134,11 +134,19 @@ export class MessageScheduler {
 					const message = await this.sendMessage(scheduled.jid, scheduled.content, scheduled.options)
 					scheduled.status = 'sent'
 					scheduled.messageId = message?.key?.id ?? undefined
-					this.options.onSent(scheduled, message)
+					try {
+						this.options.onSent(scheduled, message)
+					} catch (callbackError) {
+						this.options.logger?.warn({ id: scheduled.id, jid: scheduled.jid, callbackError }, 'onSent callback threw')
+					}
 				} catch (error) {
 					scheduled.status = 'failed'
 					scheduled.error = (error as Error)?.message ?? String(error)
-					this.options.onFailed(scheduled, error)
+					try {
+						this.options.onFailed(scheduled, error)
+					} catch (callbackError) {
+						this.options.logger?.warn({ id: scheduled.id, jid: scheduled.jid, callbackError }, 'onFailed callback threw')
+					}
 				}
 
 				this.queue.delete(id)
