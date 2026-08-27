@@ -4,7 +4,7 @@ import type { AuthenticationState, SocketConfig, WAVersion } from '../Types'
 import { Browsers } from '../Utils/browser-utils'
 import logger from '../Utils/logger'
 
-const version = [2, 3000, 1044006379]
+const version = [2, 3000, 1044802095]
 
 export const UNAUTHORIZED_CODES = [401, 403, 419]
 
@@ -172,4 +172,4 @@ export const TimeMs = {
 	Hour: 60 * 60 * 1000,
 	Day: 24 * 60 * 60 * 1000,
 	Week: 7 * 24 * 60 * 60 * 1000
-}
+	}
