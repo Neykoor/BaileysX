@@ -479,7 +479,7 @@ export type CapturedUnifiedResponse = {
 }
 
 export const captureUnifiedResponse = (msg?: proto.IMessage | null): CapturedUnifiedResponse | null => {
-	const rich = msg?.richResponseMessage
+	const rich = msg?.richResponseMessage || msg?.botForwardedMessage?.message?.richResponseMessage
 	if (!rich?.unifiedResponse?.data) {
 		return null
 	}
@@ -508,4 +508,5 @@ export const generateRichMessageContent = (
 ): RichMessageResult => {
 	const ctxInfo = buildRichContextInfo(quoted)
 	return { message: buildBotForwardedMessage(submessages, ctxInfo), messageId: generateMessageIDV2() }
-}
+			}
+	
