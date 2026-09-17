@@ -450,20 +450,20 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 			const botNorm = normalizeJid(botJid)
 			const botLidNorm = normalizeJid(botLid)
 
-			const isAdminIn = (...norms: Array<string | null>) => {
-				const targets = norms.filter((n): n is string => n !== null)
-				if (targets.length === 0) {
-					return false
+			const adminNorms = new Set<string>()
+			for (const p of meta.participants) {
+				if (p.admin !== 'admin' && p.admin !== 'superadmin') {
+					continue
 				}
 
-				return meta.participants.some(p => {
-					const candidates = [normalizeJid(p.id), normalizeJid(p.phoneNumber), normalizeJid(p.lid)].filter(
-						(c): c is string => c !== null
-					)
-					const isMatch = candidates.some(c => targets.includes(c))
-					return isMatch && (p.admin === 'admin' || p.admin === 'superadmin')
-				})
+				for (const candidate of [normalizeJid(p.id), normalizeJid(p.phoneNumber), normalizeJid(p.lid)]) {
+					if (candidate !== null) {
+						adminNorms.add(candidate)
+					}
+				}
 			}
+
+			const isAdminIn = (...norms: Array<string | null>) => norms.some(n => n !== null && adminNorms.has(n))
 
 			const isAdmin = isAdminIn(senderNorm)
 			let isBotAdmin = isAdminIn(botNorm, botLidNorm)
@@ -585,4 +585,5 @@ export type GroupsSocket = ReturnType<typeof makeGroupsSocket>
 
 
 
-		
+
+							
