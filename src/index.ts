@@ -6,7 +6,7 @@ export * from './Store/index'
 export * from './Types/index'
 export * from './Defaults/index'
 export * from './WABinary/index'
-export * from './WAM/index'
+export { BinaryInfo } from './WAM/BinaryInfo'
 export * from './WAUSync/index'
 
 export type WASocket = ReturnType<typeof makeWASocket>
