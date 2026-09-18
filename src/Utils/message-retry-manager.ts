@@ -219,7 +219,7 @@ export class MessageRetryManager {
 		this.statistics.successfulRetries++
 		this.retryCounters.delete(this.retryCounterKey(messageId, participant))
 		this.retryCounters.delete(messageId)
-		this.cancelPendingPhoneRequest(messageId)
+		this.cancelPendingPhoneRequest(messageId, participant)
 		this.removeRecentMessage(messageId, to)
 	}
 
@@ -227,7 +227,7 @@ export class MessageRetryManager {
 		this.statistics.failedRetries++
 		this.retryCounters.delete(this.retryCounterKey(messageId, participant))
 		this.retryCounters.delete(messageId)
-		this.cancelPendingPhoneRequest(messageId)
+		this.cancelPendingPhoneRequest(messageId, participant)
 		this.removeRecentMessage(messageId, to)
 	}
 
@@ -235,25 +235,30 @@ export class MessageRetryManager {
 		return participant ? `${messageId}${MESSAGE_KEY_SEPARATOR}${participant}` : messageId
 	}
 
-	schedulePhoneRequest(messageId: string, callback: () => void, delay: number = PHONE_REQUEST_DELAY): void {
+	schedulePhoneRequest(messageId: string, participant: string | undefined, callback: () => void, delay: number = PHONE_REQUEST_DELAY): void {
+		const key = this.retryCounterKey(messageId, participant)
 
-		this.cancelPendingPhoneRequest(messageId)
+		this.cancelPendingPhoneRequestByKey(key)
 
-		this.pendingPhoneRequests[messageId] = setTimeout(() => {
-			delete this.pendingPhoneRequests[messageId]
+		this.pendingPhoneRequests[key] = setTimeout(() => {
+			delete this.pendingPhoneRequests[key]
 			this.statistics.phoneRequests++
 			callback()
 		}, delay)
 
-		this.logger.debug(`Scheduled phone request for message ${messageId} with ${delay}ms delay`)
+		this.logger.debug(`Scheduled phone request for message ${messageId}${participant ? `/${participant}` : ''} with ${delay}ms delay`)
 	}
 
-	cancelPendingPhoneRequest(messageId: string): void {
-		const timeout = this.pendingPhoneRequests[messageId]
+	cancelPendingPhoneRequest(messageId: string, participant?: string): void {
+		this.cancelPendingPhoneRequestByKey(this.retryCounterKey(messageId, participant))
+	}
+
+	private cancelPendingPhoneRequestByKey(key: string): void {
+		const timeout = this.pendingPhoneRequests[key]
 		if (timeout) {
 			clearTimeout(timeout)
-			delete this.pendingPhoneRequests[messageId]
-			this.logger.debug(`Cancelled pending phone request for message ${messageId}`)
+			delete this.pendingPhoneRequests[key]
+			this.logger.debug(`Cancelled pending phone request for key ${key}`)
 		}
 	}
 
@@ -263,8 +268,8 @@ export class MessageRetryManager {
 		this.sessionRecreateHistory.clear()
 		this.retryCounters.clear()
 		this.baseKeys.clear()
-		for (const messageId of Object.keys(this.pendingPhoneRequests)) {
-			this.cancelPendingPhoneRequest(messageId)
+		for (const key of Object.keys(this.pendingPhoneRequests)) {
+			this.cancelPendingPhoneRequestByKey(key)
 		}
 
 		this.statistics = {
@@ -329,5 +334,4 @@ export class MessageRetryManager {
 
 		this.messageKeyIndex.delete(messageId)
 	}
-			}
-			
+}
