@@ -34,6 +34,11 @@ type GetSenderKeyDistributionMessageOpts = {
 	meId: string
 }
 
+type RemoveGroupParticipantSessionsOpts = {
+	group: string
+	participants: string[]
+}
+
 type PreKey = {
 	keyId: number
 	publicKey: Uint8Array
@@ -68,6 +73,8 @@ export type SignalRepository = {
 		ciphertext: Uint8Array
 	}>
 	getSenderKeyDistributionMessage(opts: GetSenderKeyDistributionMessageOpts): Promise<Uint8Array>
+	rotateSenderKey(opts: GetSenderKeyDistributionMessageOpts): Promise<Uint8Array>
+	removeGroupParticipantSessions(opts: RemoveGroupParticipantSessionsOpts): Promise<void>
 	hasSenderKey(opts: GetSenderKeyDistributionMessageOpts): Promise<boolean>
 	getSessionInfo(jid: string): Promise<{ baseKey: Uint8Array; registrationId: number } | null>
 	injectE2ESession(opts: E2ESessionOpts): Promise<void>
@@ -78,7 +85,6 @@ export type SignalRepository = {
 	deleteSession(jids: string[]): Promise<void>
 }
 
-// Optimized repository with pre-loaded LID mapping store
 export interface SignalRepositoryWithLIDStore extends SignalRepository {
 	lidMapping: LIDMappingStore
 	close?: () => void
