@@ -1,3 +1,5 @@
+// @ts-ignore
+import { keyhelper } from 'libsignal'
 import { KEY_BUNDLE_TYPE } from '../Defaults'
 import type { SignalRepositoryWithLIDStore } from '../Types'
 import type {
@@ -44,7 +46,7 @@ export const createSignalIdentity = (wid: string, accountSignatureKey: Uint8Arra
 export const getPreKeys = async ({ get }: SignalKeyStore, min: number, limit: number) => {
 	const idList: string[] = []
 	for (let id = min; id < limit; id++) {
-		idList.push(id.toString())
+		idList.push(keyhelper.wrapPreKeyId(id).toString())
 	}
 
 	return get('pre-key', idList)
@@ -57,7 +59,7 @@ export const generateOrGetPreKeys = (creds: AuthenticationCreds, range: number) 
 	const newPreKeys: { [id: number]: KeyPair } = {}
 	if (remaining > 0) {
 		for (let i = creds.nextPreKeyId; i <= lastPreKeyId; i++) {
-			newPreKeys[i] = Curve.generateKeyPair()
+			newPreKeys[keyhelper.wrapPreKeyId(i)] = Curve.generateKeyPair()
 		}
 	}
 
@@ -253,4 +255,5 @@ export const getNextPreKeysNode = async (state: AuthenticationState, count: numb
 
 	return { update, node }
 		}
-		
+
+				
