@@ -19,6 +19,8 @@ export type SignalIdentity = {
 	identifierKey: Uint8Array
 }
 
+export type RetiredSignedKeyPair = SignedKeyPair & { retiredAtMs: number }
+
 export type LIDMapping = {
 	pn: string
 	lid: string
@@ -59,6 +61,7 @@ export type AuthenticationCreds = SignalCreds & {
 
 	lastAccountSyncTimestamp?: number
 	platform?: string
+	retiredSignedPreKeyIds?: number[]
 
 	processedHistoryMessages: MinimalMessage[]
 	/** number of times history & app state has been synced */
@@ -82,6 +85,7 @@ export type SignalDataTypeMap = {
 	'device-list': string[]
 	tctoken: { token: Buffer; timestamp?: string; senderTimestamp?: number }
 	'identity-key': Uint8Array
+	'retired-signed-pre-key': RetiredSignedKeyPair
 }
 
 export type SignalDataSet = { [T in keyof SignalDataTypeMap]?: { [id: string]: SignalDataTypeMap[T] | null } }
