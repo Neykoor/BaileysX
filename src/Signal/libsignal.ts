@@ -265,10 +265,19 @@ export function makeLibSignalRepository(
 			if (!jids.length) return
 
 			const sessionUpdates: { [key: string]: null } = {}
-			jids.forEach(jid => {
+
+			for (const jid of jids) {
 				const addr = jidToSignalProtocolAddress(jid)
 				sessionUpdates[addr.toString()] = null
-			})
+
+				if (!isLidUser(jid) && !isHostedLidUser(jid)) {
+					const lidForPN = await lidMapping.getLIDForPN(jid)
+					if (lidForPN) {
+						const lidAddr = jidToSignalProtocolAddress(lidForPN)
+						sessionUpdates[lidAddr.toString()] = null
+					}
+				}
+			}
 
 			return parsedKeys.transaction(async () => {
 				await auth.keys.set({ session: sessionUpdates })
@@ -578,4 +587,5 @@ function signalStorage(
 			}
 		}
 	}
-}
+		}
+		
