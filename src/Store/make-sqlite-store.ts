@@ -246,8 +246,28 @@ export async function makeSqliteStore(opts: SqliteStoreOptions): Promise<SqliteS
 			}
 		})
 
-		ev.on('messages.upsert', ({ messages }) => {
+		ev.on('messages.upsert', ({ messages, type }) => {
 			upsertMessages(messages as WAMessage[])
+
+			if (type === 'notify') {
+				for (const msg of messages) {
+					const rawJid = msg.key.remoteJidAlt || msg.key.remoteJid
+					if (!rawJid) {
+						continue
+					}
+
+					const jid = jidNormalizedUser(rawJid)
+					if (!stmts.chatGet.get(jid)) {
+						ev.emit('chats.upsert', [
+							{
+								id: jid,
+								conversationTimestamp: Number(msg.messageTimestamp || 0),
+								unreadCount: 1
+							}
+						])
+					}
+				}
+			}
 		})
 
 		ev.on('messages.update', updates => {
@@ -264,6 +284,14 @@ export async function makeSqliteStore(opts: SqliteStoreOptions): Promise<SqliteS
 				}
 
 				const existing = fromJson<WAMessage>(row.value)
+
+				if (update.status !== undefined) {
+					const listStatus = existing.status
+					if (listStatus && update.status && update.status <= listStatus) {
+						delete update.status
+					}
+				}
+
 				const { eventResponses, pollUpdates, ...rest } = update
 				const merged = Object.assign({}, existing, rest)
 
@@ -397,4 +425,4 @@ export type SqliteStore = Awaited<ReturnType<typeof makeSqliteStore>>
 
 
 
-			
+
