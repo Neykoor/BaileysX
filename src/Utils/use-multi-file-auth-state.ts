@@ -1,84 +1,90 @@
 import { Mutex } from 'async-mutex'
-import { mkdir, readFile, stat, unlink, writeFile } from 'fs/promises'
+import { mkdir, readFile, rename, stat, unlink, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { proto } from '../../WAProto/index.js'
 import type { AuthenticationCreds, AuthenticationState, SignalDataTypeMap } from '../Types'
 import { initAuthCreds } from './auth-utils'
 import { BufferJSON } from './generics'
 
-// We need to lock files due to the fact that we are using async functions to read and write files
-// https://github.com/WhiskeySockets/Baileys/issues/794
-// https://github.com/nodejs/node/issues/26338
-// Use a Map to store mutexes for each file path
-const fileLocks = new Map<string, Mutex>()
+const fileLocks = new Map<string, { mutex: Mutex; refs: number }>()
 
-// Get or create a mutex for a specific file path
-const getFileLock = (path: string): Mutex => {
-	let mutex = fileLocks.get(path)
-	if (!mutex) {
-		mutex = new Mutex()
-		fileLocks.set(path, mutex)
+const withFileLock = async <T>(path: string, task: () => Promise<T>): Promise<T> => {
+	let entry = fileLocks.get(path)
+	if (!entry) {
+		entry = { mutex: new Mutex(), refs: 0 }
+		fileLocks.set(path, entry)
 	}
 
-	return mutex
+	entry.refs++
+	try {
+		return await entry.mutex.runExclusive(task)
+	} finally {
+		if (--entry.refs === 0) {
+			fileLocks.delete(path)
+		}
+	}
 }
 
-/**
- * stores the full authentication state in a single folder.
- * Far more efficient than singlefileauthstate
- *
- * Again, I wouldn't endorse this for any production level use other than perhaps a bot.
- * Would recommend writing an auth state for use with a proper SQL or No-SQL DB
- * */
+const isErrnoException = (error: unknown): error is NodeJS.ErrnoException =>
+	typeof error === 'object' && error !== null && 'code' in error
+
 export const useMultiFileAuthState = async (
 	folder: string
 ): Promise<{ state: AuthenticationState; saveCreds: () => Promise<void> }> => {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const writeData = async (data: any, file: string) => {
-		const filePath = join(folder, fixFileName(file)!)
-		const mutex = getFileLock(filePath)
+	const fixFileName = (file: string) => file.replace(/[/\\]/g, '__').replace(/:/g, '-')
 
-		return mutex.acquire().then(async release => {
-			try {
-				await writeFile(filePath, JSON.stringify(data, BufferJSON.replacer))
-			} finally {
-				release()
+		const writeData = async (data: any, file: string) => {
+		const filePath = join(folder, fixFileName(file))
+		const tempPath = `${filePath}.tmp`
+
+		return withFileLock(filePath, async () => {
+						try {
+				await writeFile(tempPath, JSON.stringify(data, BufferJSON.replacer))
+				await rename(tempPath, filePath)
+			} catch (error) {
+				await unlink(tempPath).catch(() => {})
+				throw error
 			}
 		})
 	}
 
-	const readData = async (file: string) => {
-		try {
-			const filePath = join(folder, fixFileName(file)!)
-			const mutex = getFileLock(filePath)
+	
+	const readData = async (file: string, strict = false) => {
+		const filePath = join(folder, fixFileName(file))
 
-			return await mutex.acquire().then(async release => {
-				try {
-					const data = await readFile(filePath, { encoding: 'utf-8' })
-					return JSON.parse(data, BufferJSON.reviver)
-				} finally {
-					release()
+		return withFileLock(filePath, async () => {
+			try {
+				const data = await readFile(filePath, { encoding: 'utf-8' })
+				return JSON.parse(data, BufferJSON.reviver)
+			} catch (error) {
+				if (isErrnoException(error) && error.code === 'ENOENT') {
+					return null
 				}
-			})
-		} catch (error) {
-			return null
-		}
+
+				if (strict) {
+					throw new Error(
+						`could not read auth file ${filePath}: ${(error as Error).message}. ` +
+							'Refusing to create new credentials over it; fix or delete the file if you want to start over.'
+					)
+				}
+
+				return null
+			}
+		})
 	}
 
 	const removeData = async (file: string) => {
-		try {
-			const filePath = join(folder, fixFileName(file)!)
-			const mutex = getFileLock(filePath)
+		const filePath = join(folder, fixFileName(file))
 
-			return mutex.acquire().then(async release => {
-				try {
-					await unlink(filePath)
-				} catch {
-				} finally {
-					release()
+		return withFileLock(filePath, async () => {
+			try {
+				await unlink(filePath)
+			} catch (error) {
+				if (!isErrnoException(error) || error.code !== 'ENOENT') {
+					throw error
 				}
-			})
-		} catch {}
+			}
+		})
 	}
 
 	const folderInfo = await stat(folder).catch(() => {})
@@ -92,9 +98,7 @@ export const useMultiFileAuthState = async (
 		await mkdir(folder, { recursive: true })
 	}
 
-	const fixFileName = (file?: string) => file?.replace(/\//g, '__')?.replace(/:/g, '-')
-
-	const creds: AuthenticationCreds = (await readData('creds.json')) || initAuthCreds()
+	const creds: AuthenticationCreds = (await readData('creds.json', true)) || initAuthCreds()
 
 	return {
 		state: {
@@ -133,4 +137,5 @@ export const useMultiFileAuthState = async (
 			return writeData(creds, 'creds.json')
 		}
 	}
-}
+								 }
+	
