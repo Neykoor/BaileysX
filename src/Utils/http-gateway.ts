@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { ILogger } from './logger'
 import { createPrometheusExporter, type PrometheusExporter } from './prometheus'
@@ -19,14 +20,15 @@ export type HttpGatewayOptions = {
 	sock: GatewaySocket
 	port?: number
 	host?: string
-	/** When set, API routes require `Authorization: Bearer <token>` or `x-api-key`. */
 	token?: string
 	webhookPath?: string
-	/** Serve a small HTML dashboard at `/`. Defaults to true. */
 	dashboard?: boolean
-	/** Expose Prometheus text at `/metrics`. Defaults to true. */
 	prometheus?: boolean
 	maxBodyBytes?: number
+	
+	allowUnauthenticatedSend?: boolean
+	
+	corsOrigin?: string
 	onWebhook?: (request: WebhookRequest) => unknown | Promise<unknown>
 	logger?: ILogger
 }
@@ -139,23 +141,32 @@ const getHeader = (headers: IncomingHttpHeaders, name: string): string | undefin
 	return Array.isArray(value) ? value[0] : value
 }
 
+const safeEqual = (a: string, b: string): boolean => {
+	const left = Buffer.from(a)
+	const right = Buffer.from(b)
+	return left.length === right.length && timingSafeEqual(left, right)
+}
+
 const hasValidToken = (req: IncomingMessage, token?: string): boolean => {
 	if (!token) {
 		return true
 	}
 
 	const authorization = getHeader(req.headers, 'authorization')
-	if (authorization?.startsWith('Bearer ') && authorization.slice(7) === token) {
+	if (authorization?.startsWith('Bearer ') && safeEqual(authorization.slice(7), token)) {
 		return true
 	}
 
-	return getHeader(req.headers, 'x-api-key') === token
+	const apiKey = getHeader(req.headers, 'x-api-key')
+	return apiKey !== undefined && safeEqual(apiKey, token)
 }
 
-/**
- * Dependency-free HTTP gateway for health checks, Prometheus scraping,
- * webhook ingestion and optional outbound sends.
- */
+const isJsonContentType = (req: IncomingMessage): boolean => {
+	const contentType = getHeader(req.headers, 'content-type')
+	return !!contentType && /^application\/(?:[\w.+-]+\+)?json\s*(?:;|$)/i.test(contentType.trim())
+}
+
+
 export const createHttpGateway = (opts: HttpGatewayOptions): HttpGateway => {
 	const maxBodyBytes = opts.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES
 	const webhookPath = opts.webhookPath ?? '/webhook'
@@ -173,9 +184,12 @@ export const createHttpGateway = (opts: HttpGatewayOptions): HttpGateway => {
 	})
 
 	const handle = async (req: IncomingMessage, res: ServerResponse) => {
-		res.setHeader('access-control-allow-origin', '*')
-		res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS')
-		res.setHeader('access-control-allow-headers', 'content-type,authorization,x-api-key')
+		if (opts.corsOrigin) {
+			res.setHeader('access-control-allow-origin', opts.corsOrigin)
+			res.setHeader('vary', 'origin')
+			res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS')
+			res.setHeader('access-control-allow-headers', 'content-type,authorization,x-api-key')
+		}
 
 		if (req.method === 'OPTIONS') {
 			res.statusCode = 204
@@ -238,6 +252,18 @@ export const createHttpGateway = (opts: HttpGatewayOptions): HttpGateway => {
 			if (req.method === 'POST' && path === '/send') {
 				if (!opts.sock.sendMessage) {
 					sendJson(res, 501, { error: 'sendMessage is not available on this socket' })
+					return
+				}
+
+				if (!opts.token && !opts.allowUnauthenticatedSend) {
+					sendJson(res, 403, {
+						error: 'send is disabled without a token; set `token` or `allowUnauthenticatedSend`'
+					})
+					return
+				}
+
+				if (!isJsonContentType(req)) {
+					sendJson(res, 415, { error: 'content-type must be application/json' })
 					return
 				}
 
@@ -339,4 +365,4 @@ export const createHttpGateway = (opts: HttpGatewayOptions): HttpGateway => {
 	}
 
 	return { server, start, close, address }
-}
+				}
