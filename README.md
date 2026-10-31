@@ -374,7 +374,7 @@ const gateway = createHttpGateway({ sock, port: 3000, token: process.env.API_TOK
 await gateway.start()
 ```
 
-`createHttpGateway` expone `/health`, `/metrics`, `/webhook`, `/send` y un dashboard básico. Las rutas de API aceptan `Authorization: Bearer <token>` o `x-api-key`.
+`createHttpGateway` expone `/health`, `/metrics`, `/webhook`, `/send` y un dashboard básico. Las rutas de API aceptan `Authorization: Bearer <token>` o `x-api-key`. Sin `token`, `POST /send` responde 403 salvo que pases `allowUnauthenticatedSend: true`; `/send` exige `content-type: application/json`. No se envían cabeceras CORS salvo que definas `corsOrigin`.
 
 ### Record/replay y socket falso para tests
 
