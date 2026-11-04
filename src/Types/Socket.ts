@@ -86,6 +86,7 @@ export type SocketConfig = {
 	getMessage: (key: WAMessageKey) => Promise<proto.IMessage | undefined>
 	cachedGroupMetadata: (jid: string) => Promise<GroupMetadata | undefined>
 	groupCacheTTL: number
+	refreshGroupOnParticipantsUpdate: boolean
 	newsletterMetadataCacheTtlMs: number
 	newsletterMetadataCacheMaxSize: number
 	makeSignalRepository: (
