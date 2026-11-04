@@ -92,6 +92,7 @@ export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
 	getMessage: async () => undefined,
 	cachedGroupMetadata: async () => undefined,
 	groupCacheTTL: 5 * 60 * 1000,
+	refreshGroupOnParticipantsUpdate: true,
 	newsletterMetadataCacheTtlMs: 5 * 60 * 1000,
 	newsletterMetadataCacheMaxSize: 256,
 	makeSignalRepository: makeLibSignalRepository
@@ -172,4 +173,4 @@ export const TimeMs = {
 	Hour: 60 * 60 * 1000,
 	Day: 24 * 60 * 60 * 1000,
 	Week: 7 * 24 * 60 * 60 * 1000
-	}
+}
