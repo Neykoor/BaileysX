@@ -14,7 +14,8 @@ const SIGNAL_NOISE = [
 const isNoise = (args: unknown[]): boolean =>
 	args.some(arg => {
 		if (typeof arg === 'string') {
-			return SIGNAL_NOISE.some(pattern => arg.includes(pattern))
+			const text = arg.trimStart()
+			return SIGNAL_NOISE.some(pattern => text.startsWith(pattern))
 		}
 
 		return typeof arg === 'object' && arg !== null && arg.constructor?.name === 'SessionEntry'
