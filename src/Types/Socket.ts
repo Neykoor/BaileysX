@@ -39,6 +39,8 @@ export type SocketConfig = {
 	logger: ILogger
 	version: WAVersion
 	syncWaWebVersion: boolean
+	banner?: boolean
+	silenceSignalNoise?: boolean
 	browser: WABrowserDescription
 	pushName?: string
 	fetchAgent?: Agent
