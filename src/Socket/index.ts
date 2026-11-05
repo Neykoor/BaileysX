@@ -3,13 +3,20 @@ import type { MediaDownloadOptions } from '../Utils/messages-media'
 import type { WAMessage } from '../Types/Message'
 import type { UserFacingSocketConfig } from '../Types'
 import { installConsoleFilter } from '../Utils/console-filter'
-import { printBanner } from '../Utils/banner'
+import { disableBanner, printBanner } from '../Utils/banner'
 import { makeMediaCache } from '../Utils/media-cache'
 import { makeUsernameSocket } from './username'
 
 
 const makeWASocket = (config: UserFacingSocketConfig) => {
-	installConsoleFilter()
+	if (config.silenceSignalNoise !== false) {
+		installConsoleFilter()
+	}
+
+	if (config.banner === false) {
+		disableBanner()
+	}
+
 	printBanner()
 
 	const newConfig = {
