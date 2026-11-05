@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
 const ESC = '\x1b['
 const RESET = `${ESC}0m`
 const BOLD = `${ESC}1m`
@@ -22,12 +25,27 @@ const gradientLine = (text: string, offset = 0) => {
 }
 
 
-export const BAILEYSX_VERSION = '7.0.10-rc1'
+const readPackageVersion = (): string => {
+	try {
+		const raw = readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf-8')
+		const parsed = JSON.parse(raw) as { version?: unknown }
+		return typeof parsed.version === 'string' ? parsed.version : 'unknown'
+	} catch {
+		return 'unknown'
+	}
+}
+
+export const BAILEYSX_VERSION = readPackageVersion()
 
 let printed = false
+let bannerDisabled = false
+
+export const disableBanner = () => {
+	bannerDisabled = true
+}
 
 export const printBanner = (version: string = BAILEYSX_VERSION) => {
-	if (printed || process.env.BAILEYSX_NO_BANNER) {
+	if (printed || bannerDisabled || process.env.BAILEYSX_NO_BANNER) {
 		return
 	}
 
@@ -67,7 +85,7 @@ let versionNoticePrinted = false
 export type WaVersionSource = 'live' | 'pinned' | 'bundled'
 
 export const printWaVersionNotice = ({ version, source }: { version: number[]; source: WaVersionSource }) => {
-	if (versionNoticePrinted || process.env.BAILEYSX_NO_BANNER) {
+	if (versionNoticePrinted || bannerDisabled || process.env.BAILEYSX_NO_BANNER) {
 		return
 	}
 
