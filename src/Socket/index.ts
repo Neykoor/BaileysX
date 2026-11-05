@@ -5,7 +5,7 @@ import type { UserFacingSocketConfig } from '../Types'
 import { installConsoleFilter } from '../Utils/console-filter'
 import { printBanner } from '../Utils/banner'
 import { makeMediaCache } from '../Utils/media-cache'
-import { makeCommunitiesSocket } from './communities'
+import { makeUsernameSocket } from './username'
 
 
 const makeWASocket = (config: UserFacingSocketConfig) => {
@@ -25,7 +25,7 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 		newConfig.version = DEFAULT_CONNECTION_CONFIG.version
 	}
 
-	const sock = makeCommunitiesSocket(newConfig)
+	const sock = makeUsernameSocket(newConfig)
 
 	const mediaCache = makeMediaCache({
 		...newConfig.mediaDownloadCache,
