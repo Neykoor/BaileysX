@@ -10,9 +10,26 @@ import { BufferJSON } from './generics.js'
 
 const FLUSH_TIMEOUT_MS = 3000
 
+const exitFlushers = new Set<() => void>()
+let exitHookInstalled = false
+
+const registerExitFlusher = (flusher: () => void) => {
+	exitFlushers.add(flusher)
+	if (exitHookInstalled) {
+		return
+	}
+
+	exitHookInstalled = true
+	process.on('exit', () => {
+		for (const pending of exitFlushers) {
+			pending()
+		}
+	})
+}
+
 export const useSingleFileAuthState = async (
 	fileName: string
-): Promise<{ state: AuthenticationState; saveCreds: () => void }> => {
+): Promise<{ state: AuthenticationState; saveCreds: () => void; close: () => void }> => {
 	
 	const cache = new LRUCache<string, any>({
 		max: 20000,
@@ -83,7 +100,7 @@ export const useSingleFileAuthState = async (
 		} catch {}
 	}
 
-	process.on('exit', flushSync)
+	registerExitFlusher(flushSync)
 
 	
 	const writeKey = (keyName: string, value: any) => {
@@ -143,6 +160,10 @@ export const useSingleFileAuthState = async (
 				}
 			}
 		},
-		saveCreds: () => writeKey('creds', creds)
-	}
+		saveCreds: () => writeKey('creds', creds),
+		close: () => {
+			flushSync()
+			exitFlushers.delete(flushSync)
 		}
+	}
+								}
