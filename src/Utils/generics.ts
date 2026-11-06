@@ -16,7 +16,7 @@ import { type BinaryNode, getAllBinaryNodeChildren, jidDecode } from '../WABinar
 import { sha256 } from './crypto'
 
 export const BufferJSON = {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 	replacer: (k: any, value: any) => {
 		if (Buffer.isBuffer(value) || value instanceof Uint8Array || value?.type === 'Buffer') {
 			return { type: 'Buffer', data: Buffer.from(value?.data || value).toString('base64') }
@@ -25,7 +25,6 @@ export const BufferJSON = {
 		return value
 	},
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	reviver: (_: any, value: any) => {
 		if (typeof value === 'object' && value !== null && value.type === 'Buffer' && typeof value.data === 'string') {
 			return Buffer.from(value.data, 'base64')
@@ -49,7 +48,7 @@ export const getKeyAuthor = (key: WAMessageKey | undefined | null, meId = 'me') 
 	(key?.fromMe ? meId : key?.participantAlt || key?.remoteJidAlt || key?.participant || key?.remoteJid) || ''
 
 export const isStringNullOrEmpty = (value: string | null | undefined): value is null | undefined | '' =>
-	// eslint-disable-next-line eqeqeq
+
 	value == null || value === ''
 
 export const writeRandomPadMax16 = (msg: Uint8Array) => {
@@ -73,7 +72,6 @@ export const unpadRandomMax16 = (e: Uint8Array | Buffer) => {
 	return new Uint8Array(t.buffer, t.byteOffset, t.length - r)
 }
 
-// code is inspired by whatsmeow
 export const generateParticipantHashV2 = (participants: string[]): string => {
 	participants.sort()
 	const sha256Hash = sha256(Buffer.from(participants.join(''))).toString('base64')
@@ -100,7 +98,6 @@ export const encodeBigEndian = (e: number, t = 4) => {
 export const toNumber = (t: Long | number | null | undefined): number =>
 	typeof t === 'object' && t ? ('toNumber' in t ? t.toNumber() : (t as Long).low) : t || 0
 
-/** unix timestamp of a date in seconds */
 export const unixTimestampSeconds = (date: Date = new Date()) => Math.floor(date.getTime() / 1000)
 
 export type DebouncedTimeout = ReturnType<typeof debouncedTimeout>
@@ -157,7 +154,7 @@ export async function promiseTimeout<T>(
 	}
 
 	const stack = new Error().stack
-	// Create a promise that rejects in <ms> milliseconds
+
 	const { delay, cancel } = delayCancellable(ms)
 	const p = new Promise((resolve, reject) => {
 		delay
@@ -178,8 +175,6 @@ export async function promiseTimeout<T>(
 	return p as Promise<T>
 }
 
-// inspired from whatsmeow code
-// https://github.com/tulir/whatsmeow/blob/64bc969fbe78d31ae0dd443b8d4c80a5d026d07a/send.go#L42
 export const generateMessageIDV2 = (userId?: string): string => {
 	const data = Buffer.alloc(8 + 20 + 16)
 	data.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 1000)))
@@ -199,7 +194,6 @@ export const generateMessageIDV2 = (userId?: string): string => {
 	return '3EB0' + hash.toString('hex').toUpperCase().substring(0, 18)
 }
 
-// generate a random ID to attach to a message
 export const generateMessageID = () => '3EB0' + randomBytes(18).toString('hex').toUpperCase()
 
 export function bindWaitForEvent<T extends keyof BaileysEventMap>(ev: BaileysEventEmitter, event: T) {
@@ -232,10 +226,6 @@ export function bindWaitForEvent<T extends keyof BaileysEventMap>(ev: BaileysEve
 
 export const bindWaitForConnectionUpdate = (ev: BaileysEventEmitter) => bindWaitForEvent(ev, 'connection.update')
 
-/**
- * utility that fetches latest baileys version from the master branch.
- * Use to ensure your WA connection is always on the latest version
- */
 export const fetchLatestBaileysVersion = async (options: RequestInit = {}) => {
 	const URL = 'https://raw.githubusercontent.com/WhiskeySockets/Baileys/master/src/Defaults/index.ts'
 	try {
@@ -249,9 +239,9 @@ export const fetchLatestBaileysVersion = async (options: RequestInit = {}) => {
 		}
 
 		const text = await response.text()
-		// Extract version from line 7 (const version = [...])
+
 		const lines = text.split('\n')
-		const versionLine = lines[6] // Line 7 (0-indexed)
+		const versionLine = lines[6]
 		const versionMatch = versionLine!.match(/const version = \[(\d+),\s*(\d+),\s*(\d+)\]/)
 
 		if (versionMatch) {
@@ -273,13 +263,9 @@ export const fetchLatestBaileysVersion = async (options: RequestInit = {}) => {
 	}
 }
 
-/**
- * A utility that fetches the latest web version of whatsapp.
- * Use to ensure your WA connection is always on the latest version
- */
 export const fetchLatestWaWebVersion = async (options: RequestInit = {}) => {
 	try {
-		// Absolute minimal headers required to bypass anti-bot detection
+
 		const defaultHeaders = {
 			'sec-fetch-site': 'none',
 			'user-agent':
@@ -328,7 +314,6 @@ export const fetchLatestWaWebVersion = async (options: RequestInit = {}) => {
 	}
 }
 
-/** unique message tag prefix for MD clients */
 export const generateMdTagPrefix = () => {
 	const bytes = randomBytes(4)
 	return `${bytes.readUInt16BE()}.${bytes.readUInt16BE(2)}-`
@@ -340,10 +325,7 @@ const STATUS_MAP: { [_: string]: proto.WebMessageInfo.Status } = {
 	read: proto.WebMessageInfo.Status.READ,
 	'read-self': proto.WebMessageInfo.Status.READ
 }
-/**
- * Given a type of receipt, returns what the new status of the message should be
- * @param type type from receipt
- */
+
 export const getStatusFromReceiptType = (type: string | undefined) => {
 	const status = STATUS_MAP[type!]
 	if (typeof type === 'undefined') {
@@ -357,11 +339,10 @@ const CODE_MAP: { [_: string]: DisconnectReason } = {
 	conflict: DisconnectReason.connectionReplaced
 }
 
-
 export const getErrorCodeFromStreamError = (node: BinaryNode) => {
 	const [reasonNode] = getAllBinaryNodeChildren(node)
 	let reason = reasonNode?.tag || 'unknown'
-	const statusCode = +(node.attrs.code || CODE_MAP[reason] || DisconnectReason.badSession)
+	const statusCode = +(node.attrs.code || CODE_MAP[reason] || DisconnectReason.connectionLost)
 
 	if (statusCode === DisconnectReason.restartRequired) {
 		reason = 'restart required'
@@ -384,7 +365,7 @@ export const getCallStatusFromNode = ({ tag, attrs }: BinaryNode) => {
 			if (attrs.reason === 'timeout') {
 				status = 'timeout'
 			} else {
-				 
+
 				status = 'terminate'
 			}
 
@@ -425,13 +406,12 @@ export const getCodeFromWSError = (error: Error) => {
 		(error as any)?.code?.startsWith('E') ||
 		error?.message?.includes('timed out')
 	) {
-	
+
 		statusCode = 408
 	}
 
 	return statusCode
 }
-
 
 export const isWABusinessPlatform = (platform: string) => {
 	return platform === 'smbi' || platform === 'smba'
@@ -474,4 +454,5 @@ export function bytesToCrockford(buffer: Buffer): string {
 export function encodeNewsletterMessage(message: proto.IMessage): Uint8Array {
 	return proto.Message.encode(message).finish()
 				}
+
 		
