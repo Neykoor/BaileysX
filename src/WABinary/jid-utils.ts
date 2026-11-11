@@ -55,7 +55,6 @@ export const jidEncode = (user: string | number | null, server: JidServer, devic
 }
 
 export const jidDecode = (jid: string | undefined): FullJid | undefined => {
-	// todo: investigate how to implement hosted ids in this case
 	const sepIdx = typeof jid === 'string' ? jid.indexOf('@') : -1
 	if (sepIdx < 0) {
 		return undefined
@@ -64,8 +63,23 @@ export const jidDecode = (jid: string | undefined): FullJid | undefined => {
 	const server = jid!.slice(sepIdx + 1)
 	const userCombined = jid!.slice(0, sepIdx)
 
-	const [userAgent, device] = userCombined.split(':')
-	const [user, agent] = userAgent!.split('_')
+	let userAgent = userCombined
+	let device: string | undefined
+	const colonIdx = userCombined.indexOf(':')
+	if (colonIdx >= 0) {
+		userAgent = userCombined.slice(0, colonIdx)
+		const nextColon = userCombined.indexOf(':', colonIdx + 1)
+		device = userCombined.slice(colonIdx + 1, nextColon < 0 ? undefined : nextColon)
+	}
+
+	let user = userAgent
+	let agent: string | undefined
+	const underscoreIdx = userAgent.indexOf('_')
+	if (underscoreIdx >= 0) {
+		user = userAgent.slice(0, underscoreIdx)
+		const nextUnderscore = userAgent.indexOf('_', underscoreIdx + 1)
+		agent = userAgent.slice(underscoreIdx + 1, nextUnderscore < 0 ? undefined : nextUnderscore)
+	}
 
 	let domainType = WAJIDDomains.WHATSAPP
 	if (server === 'lid') {
@@ -80,32 +94,22 @@ export const jidDecode = (jid: string | undefined): FullJid | undefined => {
 
 	return {
 		server: server as JidServer,
-		user: user!,
+		user,
 		domainType,
 		device: device ? +device : undefined
 	}
 }
 
-/** is the jid a user */
 export const areJidsSameUser = (jid1: string | undefined, jid2: string | undefined) =>
 	jidDecode(jid1)?.user === jidDecode(jid2)?.user
-/** is the jid Meta AI */
 export const isJidMetaAI = (jid: string | undefined) => jid?.endsWith('@bot')
-/** is the jid a PN user */
 export const isPnUser = (jid: string | undefined) => jid?.endsWith('@s.whatsapp.net')
-/** is the jid a LID */
 export const isLidUser = (jid: string | undefined) => jid?.endsWith('@lid')
-/** is the jid a broadcast */
 export const isJidBroadcast = (jid: string | undefined) => jid?.endsWith('@broadcast')
-/** is the jid a group */
 export const isJidGroup = (jid: string | undefined) => jid?.endsWith('@g.us')
-/** is the jid the status broadcast */
 export const isJidStatusBroadcast = (jid: string) => jid === 'status@broadcast'
-/** is the jid a newsletter */
 export const isJidNewsletter = (jid: string | undefined) => jid?.endsWith('@newsletter')
-/** is the jid a hosted PN */
 export const isHostedPnUser = (jid: string | undefined) => jid?.endsWith('@hosted')
-/** is the jid a hosted LID */
 export const isHostedLidUser = (jid: string | undefined) => jid?.endsWith('@hosted.lid')
 
 const botRegexp = /^1313555\d{4}$|^131655500\d{2}$/
@@ -142,7 +146,6 @@ export type LidPhoneCache = {
 	readonly size: number
 }
 
-/** bidirectional LID<->PN in-memory cache, opportunistically populated while parsing binary nodes */
 export function createLidPhoneCache(): LidPhoneCache {
 	const cache = new LRUCache<string, string>({
 		max: LID_PHONE_CACHE_MAX_SIZE * 2,
@@ -185,4 +188,5 @@ export function createLidPhoneCache(): LidPhoneCache {
 			return cache.size
 		}
 	}
-	}
+}
+ 
