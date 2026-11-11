@@ -71,6 +71,9 @@ export const makeNoiseHandler = ({
 	let sentIntro = false
 
 	let inBytes: Buffer = Buffer.alloc(0)
+	let pendingChunks: Uint8Array[] = []
+	let pendingLength = 0
+	let neededBytes = 0
 
 	let transport: TransportState | null = null
 	let isWaitingForTransport = false
@@ -146,13 +149,20 @@ export const makeNoiseHandler = ({
 
 	const processData = async (onFrame: (buff: Uint8Array | BinaryNode) => void) => {
 		let size: number | undefined
+		neededBytes = 0
 
 		while (true) {
-			if (inBytes.length < 3) return
+			if (inBytes.length < 3) {
+				neededBytes = 3
+				return
+			}
 
 			size = (inBytes[0]! << 16) | (inBytes[1]! << 8) | inBytes[2]!
 
-			if (inBytes.length < size + 3) return
+			if (inBytes.length < size + 3) {
+				neededBytes = size + 3
+				return
+			}
 
 			let frame: Uint8Array | BinaryNode = inBytes.subarray(3, size + 3)
 			inBytes = inBytes.subarray(size + 3)
@@ -189,7 +199,6 @@ export const makeNoiseHandler = ({
 			const certDecoded = decrypt(serverHello!.payload!)
 
 			const { intermediate: certIntermediate, leaf } = proto.CertChain.decode(certDecoded)
-			// leaf
 			if (!leaf?.details || !leaf?.signature) {
 				throw new Boom('invalid noise leaf certificate', { statusCode: 400 })
 			}
@@ -250,19 +259,26 @@ export const makeNoiseHandler = ({
 			return frame
 		},
 		decodeFrame: async (newData: Buffer | Uint8Array, onFrame: (buff: Uint8Array | BinaryNode) => void) => {
-			if (isWaitingForTransport) {
-				inBytes = Buffer.concat([inBytes, newData])
-				pendingOnFrame = onFrame
-				return
-			}
-
 			if (inBytes.length === 0) {
 				inBytes = Buffer.from(newData)
 			} else {
-				inBytes = Buffer.concat([inBytes, newData])
+				pendingChunks.push(newData)
+				pendingLength += newData.length
+				if (!isWaitingForTransport && inBytes.length + pendingLength < neededBytes) {
+					return
+				}
+
+				inBytes = Buffer.concat([inBytes, ...pendingChunks])
+				pendingChunks = []
+				pendingLength = 0
+			}
+
+			if (isWaitingForTransport) {
+				pendingOnFrame = onFrame
+				return
 			}
 
 			await processData(onFrame)
 		}
 	}
-}
+		}
