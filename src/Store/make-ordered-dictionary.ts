@@ -90,25 +90,35 @@ export function makeOrderedDictionary<T>(idGetter: (item: T) => string): Ordered
 			}
 		},
 		filter: (contain: (item: T) => boolean) => {
-			let i = 0
-			while (i < array.length) {
-				const item = array[i] as T
-				if (!contain(item)) {
-					delete dict[idGetter(item)]
-					array.splice(i, 1)
-				} else {
-					i += 1
+			let read = 0
+			let write = 0
+			try {
+				for (; read < array.length; read++) {
+					const item = array[read] as T
+					if (contain(item)) {
+						array[write++] = item
+					} else {
+						delete dict[idGetter(item)]
+					}
 				}
+			} finally {
+				while (read < array.length) {
+					array[write++] = array[read++] as T
+				}
+
+				array.length = write
 			}
 		},
 		toJSON: () => array,
 		fromJSON: (newItems: T[]) => {
-			array.splice(0, array.length, ...newItems)
+			const items = newItems === array ? newItems.slice() : newItems
+			array.length = 0
 			for (const key of Object.keys(dict)) {
 				delete dict[key]
 			}
 
-			for (const item of newItems) {
+			for (const item of items) {
+				array.push(item)
 				dict[idGetter(item)] = item
 			}
 		}
