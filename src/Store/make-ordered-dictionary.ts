@@ -17,9 +17,19 @@ export function makeOrderedDictionary<T>(idGetter: (item: T) => string): Ordered
 
 	const get = (id: string) => dict[id]
 
+	const indexOfId = (id: string) => {
+		for (let i = array.length - 1; i >= 0; i--) {
+			if (idGetter(array[i] as T) === id) {
+				return i
+			}
+		}
+
+		return -1
+	}
+
 	const update = (item: T) => {
 		const id = idGetter(item)
-		const idx = array.findIndex(i => idGetter(i) === id)
+		const idx = indexOfId(id)
 		if (idx >= 0) {
 			array[idx] = item
 			dict[id] = item
@@ -46,7 +56,7 @@ export function makeOrderedDictionary<T>(idGetter: (item: T) => string): Ordered
 
 	const remove = (item: T) => {
 		const id = idGetter(item)
-		const idx = array.findIndex(i => idGetter(i) === id)
+		const idx = indexOfId(id)
 		if (idx >= 0) {
 			array.splice(idx, 1)
 			delete dict[id]
