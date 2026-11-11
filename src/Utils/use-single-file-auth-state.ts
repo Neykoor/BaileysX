@@ -7,8 +7,11 @@ import type { AuthenticationCreds, AuthenticationState, SignalDataTypeMap } from
 import { DEFAULT_CACHE_TTLS } from '../Defaults/index.js'
 import { initAuthCreds } from './auth-utils.js'
 import { BufferJSON } from './generics.js'
+import logger from './logger.js'
 
 const FLUSH_TIMEOUT_MS = 3000
+
+const describeError = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 const exitFlushers = new Set<() => void>()
 let exitHookInstalled = false
@@ -58,7 +61,11 @@ export const useSingleFileAuthState = async (
 				for (const [keyName, value] of Object.entries(fileData)) {
 					cache.set(keyName, value)
 				}
-			} catch {
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+					logger.warn({ file: fileName, err: describeError(error) }, 'failed to read auth state file, starting empty')
+				}
+
 				fileData = {}
 			}
 
@@ -78,7 +85,9 @@ export const useSingleFileAuthState = async (
 					const tempFile = fileName + '.temp'
 					await writeFile(tempFile, JSON.stringify(fileData, BufferJSON.replacer))
 					await rename(tempFile, fileName)
-				} catch {}
+				} catch (error) {
+					logger.error({ file: fileName, err: describeError(error) }, 'failed to flush auth state file')
+				}
 			})
 		}, FLUSH_TIMEOUT_MS)
 	}
@@ -97,7 +106,9 @@ export const useSingleFileAuthState = async (
 			const tempFile = fileName + '.temp'
 			writeFileSyncFs(tempFile, JSON.stringify(fileData, BufferJSON.replacer))
 			renameSync(tempFile, fileName)
-		} catch {}
+		} catch (error) {
+			logger.error({ file: fileName, err: describeError(error) }, 'failed to flush auth state file on exit')
+		}
 	}
 
 	registerExitFlusher(flushSync)
@@ -166,4 +177,4 @@ export const useSingleFileAuthState = async (
 			exitFlushers.delete(flushSync)
 		}
 	}
-								}
+}
