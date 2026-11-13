@@ -1,302 +1,332 @@
+import { promisify } from 'util'
+import { inflate } from 'zlib'
+import { rustCodec } from '../Rust/codec'
 import * as constants from './constants'
-import { type FullJid, jidDecode } from './jid-utils'
+import { jidEncode, type JidServer, WAJIDDomains } from './jid-utils'
 import type { BinaryNode, BinaryNodeCodingOptions } from './types'
 
-type CodingOpts = Pick<BinaryNodeCodingOptions, 'TAGS' | 'TOKEN_MAP'>
+const inflatePromise = promisify(inflate)
 
-type Writer = {
-	buf: Buffer
-	len: number
+type DecodeOpts = Pick<BinaryNodeCodingOptions, 'DOUBLE_BYTE_TOKENS' | 'SINGLE_BYTE_TOKENS' | 'TAGS'>
+
+type Reader = {
+	buffer: Buffer
+	indexRef: { index: number }
+	opts: DecodeOpts
 }
 
-const INITIAL_CAPACITY = 1024
-
-const ensureCapacity = (w: Writer, extra: number) => {
-	const needed = w.len + extra
-	if (needed <= w.buf.length) {
-		return
-	}
-
-	let capacity = w.buf.length * 2
-	while (capacity < needed) {
-		capacity *= 2
-	}
-
-	const next = Buffer.allocUnsafe(capacity)
-	w.buf.copy(next, 0, 0, w.len)
-	w.buf = next
-}
-
-const pushByte = (w: Writer, value: number) => {
-	ensureCapacity(w, 1)
-	w.buf[w.len++] = value & 0xff
-}
-
-const pushInt = (w: Writer, value: number, n: number) => {
-	ensureCapacity(w, n)
-	for (let i = 0; i < n; i++) {
-		w.buf[w.len++] = (value >> ((n - 1 - i) * 8)) & 0xff
-	}
-}
-
-const pushBytes = (w: Writer, bytes: ArrayLike<number>) => {
-	const n = bytes.length
-	ensureCapacity(w, n)
-	if (bytes instanceof Uint8Array) {
-		w.buf.set(bytes, w.len)
-		w.len += n
-		return
-	}
-
-	for (let i = 0; i < n; i++) {
-		w.buf[w.len++] = (bytes[i] as number) & 0xff
-	}
-}
-
-const pushInt16 = (w: Writer, value: number) => {
-	ensureCapacity(w, 2)
-	w.buf[w.len++] = (value >> 8) & 0xff
-	w.buf[w.len++] = value & 0xff
-}
-
-const pushInt20 = (w: Writer, value: number) => {
-	ensureCapacity(w, 3)
-	w.buf[w.len++] = (value >> 16) & 0x0f
-	w.buf[w.len++] = (value >> 8) & 0xff
-	w.buf[w.len++] = value & 0xff
-}
-
-const writeByteLength = (w: Writer, opts: CodingOpts, length: number) => {
-	if (length >= 4294967296) {
-		throw new Error('string too large to encode: ' + length)
-	}
-
-	if (length >= 1 << 20) {
-		pushByte(w, opts.TAGS.BINARY_32)
-		pushInt(w, length, 4)
-	} else if (length >= 256) {
-		pushByte(w, opts.TAGS.BINARY_20)
-		pushInt20(w, length)
+export const decompressingIfRequired = async (buffer: Buffer) => {
+	if (2 & buffer.readUInt8()) {
+		buffer = await inflatePromise(buffer.slice(1))
 	} else {
-		pushByte(w, opts.TAGS.BINARY_8)
-		pushByte(w, length)
+		buffer = buffer.slice(1)
+	}
+
+	return buffer
+}
+
+const checkEOS = (r: Reader, length: number) => {
+	if (r.indexRef.index + length > r.buffer.length) {
+		throw new Error('end of stream')
 	}
 }
 
-const writeStringRaw = (w: Writer, opts: CodingOpts, str: string) => {
-	const byteLength = Buffer.byteLength(str, 'utf-8')
-	writeByteLength(w, opts, byteLength)
-	ensureCapacity(w, byteLength)
-	w.buf.write(str, w.len, byteLength, 'utf-8')
-	w.len += byteLength
+const next = (r: Reader) => {
+	const value = r.buffer[r.indexRef.index]
+	r.indexRef.index += 1
+	return value
 }
 
-const packNibble = (char: string) => {
-	switch (char) {
-		case '-':
-			return 10
-		case '.':
-			return 11
-		case '\0':
-			return 15
+const readByte = (r: Reader) => {
+	checkEOS(r, 1)
+	return next(r)
+}
+
+const readBytes = (r: Reader, n: number) => {
+	checkEOS(r, n)
+	const value = r.buffer.slice(r.indexRef.index, r.indexRef.index + n)
+	r.indexRef.index += n
+	return value
+}
+
+const readStringFromChars = (r: Reader, length: number) => {
+	return readBytes(r, length).toString('utf-8')
+}
+
+const readInt = (r: Reader, n: number, littleEndian = false) => {
+	checkEOS(r, n)
+	let val = 0
+	for (let i = 0; i < n; i++) {
+		const shift = littleEndian ? i : n - 1 - i
+		val |= next(r)! << (shift * 8)
+	}
+
+	return val
+}
+
+const readInt20 = (r: Reader) => {
+	checkEOS(r, 3)
+	return ((next(r)! & 15) << 16) + (next(r)! << 8) + next(r)!
+}
+
+const unpackHex = (value: number) => {
+	if (value >= 0 && value < 16) {
+		return value < 10 ? '0'.charCodeAt(0) + value : 'A'.charCodeAt(0) + value - 10
+	}
+
+	throw new Error('invalid hex: ' + value)
+}
+
+const unpackNibble = (value: number) => {
+	if (value >= 0 && value <= 9) {
+		return '0'.charCodeAt(0) + value
+	}
+
+	switch (value) {
+		case 10:
+			return '-'.charCodeAt(0)
+		case 11:
+			return '.'.charCodeAt(0)
+		case 15:
+			return '\0'.charCodeAt(0)
 		default:
-			if (char >= '0' && char <= '9') {
-				return char.charCodeAt(0) - '0'.charCodeAt(0)
+			throw new Error('invalid nibble: ' + value)
+	}
+}
+
+const unpackByte = (r: Reader, tag: number, value: number) => {
+	const { TAGS } = r.opts
+	if (tag === TAGS.NIBBLE_8) {
+		return unpackNibble(value)
+	} else if (tag === TAGS.HEX_8) {
+		return unpackHex(value)
+	} else {
+		throw new Error('unknown tag: ' + tag)
+	}
+}
+
+const readPacked8 = (r: Reader, tag: number) => {
+	const startByte = readByte(r)!
+	let value = ''
+
+	for (let i = 0; i < (startByte & 127); i++) {
+		const curByte = readByte(r)!
+
+		value += String.fromCharCode(unpackByte(r, tag, (curByte & 0xf0) >> 4))
+		value += String.fromCharCode(unpackByte(r, tag, curByte & 0x0f))
+	}
+
+	if (startByte >> 7 !== 0) {
+		value = value.slice(0, -1)
+	}
+
+	return value
+}
+
+const isListTag = (r: Reader, tag: number) => {
+	const { TAGS } = r.opts
+	return tag === TAGS.LIST_EMPTY || tag === TAGS.LIST_8 || tag === TAGS.LIST_16
+}
+
+const readListSize = (r: Reader, tag: number) => {
+	const { TAGS } = r.opts
+	switch (tag) {
+		case TAGS.LIST_EMPTY:
+			return 0
+		case TAGS.LIST_8:
+			return readByte(r)
+		case TAGS.LIST_16:
+			return readInt(r, 2)
+		default:
+			throw new Error('invalid tag for list size: ' + tag)
+	}
+}
+
+const readJidPair = (r: Reader) => {
+	const i = readString(r, readByte(r)!)
+	const j = readString(r, readByte(r)!)
+	if (j) {
+		return (i || '') + '@' + j
+	}
+
+	throw new Error('invalid jid pair: ' + i + ', ' + j)
+}
+
+const readAdJid = (r: Reader) => {
+	const rawDomainType = readByte(r)
+	const domainType = Number(rawDomainType)
+
+	const device = readByte(r)
+	const user = readString(r, readByte(r)!)
+
+	let server: JidServer = 's.whatsapp.net'
+	if (domainType === WAJIDDomains.LID) {
+		server = 'lid'
+	} else if (domainType === WAJIDDomains.HOSTED) {
+		server = 'hosted'
+	} else if (domainType === WAJIDDomains.HOSTED_LID) {
+		server = 'hosted.lid'
+	}
+
+	return jidEncode(user, server, device)
+}
+
+const readFbJid = (r: Reader) => {
+	const user = readString(r, readByte(r)!)
+	const device = readInt(r, 2)
+	const server = readString(r, readByte(r)!)
+	return `${user}:${device}@${server}`
+}
+
+const readInteropJid = (r: Reader) => {
+	const user = readString(r, readByte(r)!)
+	const device = readInt(r, 2)
+	const integrator = readInt(r, 2)
+
+	let server = 'interop'
+	const beforeServer = r.indexRef.index
+	try {
+		server = readString(r, readByte(r)!)
+	} catch (err) {
+		r.indexRef.index = beforeServer
+	}
+
+	return `${integrator}-${user}:${device}@${server}`
+}
+
+const getTokenDouble = (r: Reader, index1: number, index2: number) => {
+	const dict = r.opts.DOUBLE_BYTE_TOKENS[index1]
+	if (!dict) {
+		throw new Error(`Invalid double token dict (${index1})`)
+	}
+
+	const value = dict[index2]
+	if (typeof value === 'undefined') {
+		throw new Error(`Invalid double token (${index2})`)
+	}
+
+	return value
+}
+
+const readString = (r: Reader, tag: number): string => {
+	const { SINGLE_BYTE_TOKENS, TAGS } = r.opts
+	if (tag >= 1 && tag < SINGLE_BYTE_TOKENS.length) {
+		return SINGLE_BYTE_TOKENS[tag] || ''
+	}
+
+	switch (tag) {
+		case TAGS.DICTIONARY_0:
+		case TAGS.DICTIONARY_1:
+		case TAGS.DICTIONARY_2:
+		case TAGS.DICTIONARY_3:
+			return getTokenDouble(r, tag - TAGS.DICTIONARY_0, readByte(r)!)
+		case TAGS.LIST_EMPTY:
+			return ''
+		case TAGS.BINARY_8:
+			return readStringFromChars(r, readByte(r)!)
+		case TAGS.BINARY_20:
+			return readStringFromChars(r, readInt20(r))
+		case TAGS.BINARY_32:
+			return readStringFromChars(r, readInt(r, 4))
+		case TAGS.JID_PAIR:
+			return readJidPair(r)
+		case TAGS.FB_JID:
+			return readFbJid(r)
+		case TAGS.INTEROP_JID:
+			return readInteropJid(r)
+		case TAGS.AD_JID:
+			return readAdJid(r)
+		case TAGS.HEX_8:
+		case TAGS.NIBBLE_8:
+			return readPacked8(r, tag)
+		default:
+			throw new Error('invalid string with tag: ' + tag)
+	}
+}
+
+const readList = (r: Reader, tag: number) => {
+	const items: BinaryNode[] = []
+	const size = readListSize(r, tag)!
+	for (let i = 0; i < size; i++) {
+		items.push(readNode(r))
+	}
+
+	return items
+}
+
+const readNode = (r: Reader): BinaryNode => {
+	const { TAGS } = r.opts
+
+	const listSize = readListSize(r, readByte(r)!)
+	const header = readString(r, readByte(r)!)
+	if (!listSize || !header.length) {
+		throw new Error('invalid node')
+	}
+
+	const attrs: BinaryNode['attrs'] = {}
+	let data: BinaryNode['content']
+	if (listSize === 0 || !header) {
+		throw new Error('invalid node')
+	}
+
+	const attributesLength = (listSize - 1) >> 1
+	for (let i = 0; i < attributesLength; i++) {
+		const key = readString(r, readByte(r)!)
+		const value = readString(r, readByte(r)!)
+
+		attrs[key] = value
+	}
+
+	if (listSize % 2 === 0) {
+		const tag = readByte(r)!
+		if (isListTag(r, tag)) {
+			data = readList(r, tag)
+		} else {
+			let decoded: Buffer | string
+			switch (tag) {
+				case TAGS.BINARY_8:
+					decoded = readBytes(r, readByte(r)!)
+					break
+				case TAGS.BINARY_20:
+					decoded = readBytes(r, readInt20(r))
+					break
+				case TAGS.BINARY_32:
+					decoded = readBytes(r, readInt(r, 4))
+					break
+				default:
+					decoded = readString(r, tag)
+					break
 			}
 
-			throw new Error(`invalid byte for nibble "${char}"`)
-	}
-}
-
-const packHex = (char: string) => {
-	if (char >= '0' && char <= '9') {
-		return char.charCodeAt(0) - '0'.charCodeAt(0)
-	}
-
-	if (char >= 'A' && char <= 'F') {
-		return 10 + char.charCodeAt(0) - 'A'.charCodeAt(0)
-	}
-
-	if (char >= 'a' && char <= 'f') {
-		return 10 + char.charCodeAt(0) - 'a'.charCodeAt(0)
-	}
-
-	if (char === '\0') {
-		return 15
-	}
-
-	throw new Error(`Invalid hex char "${char}"`)
-}
-
-const writePackedBytes = (w: Writer, opts: CodingOpts, str: string, type: 'nibble' | 'hex') => {
-	if (str.length > opts.TAGS.PACKED_MAX) {
-		throw new Error('Too many bytes to pack')
-	}
-
-	pushByte(w, type === 'nibble' ? opts.TAGS.NIBBLE_8 : opts.TAGS.HEX_8)
-
-	let roundedLength = Math.ceil(str.length / 2.0)
-	if (str.length % 2 !== 0) {
-		roundedLength |= 128
-	}
-
-	pushByte(w, roundedLength)
-	const packFunction = type === 'nibble' ? packNibble : packHex
-
-	const strLengthHalf = Math.floor(str.length / 2)
-	for (let i = 0; i < strLengthHalf; i++) {
-		pushByte(w, (packFunction(str[2 * i]!) << 4) | packFunction(str[2 * i + 1]!))
-	}
-
-	if (str.length % 2 !== 0) {
-		pushByte(w, (packFunction(str[str.length - 1]!) << 4) | packFunction('\x00'))
-	}
-}
-
-const isNibble = (str: string | undefined, packedMax: number) => {
-	if (!str || str.length > packedMax) {
-		return false
-	}
-
-	for (let i = 0; i < str.length; i++) {
-		const code = str.charCodeAt(i)
-		if (!(code >= 48 && code <= 57) && code !== 45 && code !== 46) {
-			return false
+			data = decoded
 		}
 	}
 
-	return true
-}
-
-const isHex = (str: string | undefined, packedMax: number) => {
-	if (!str || str.length > packedMax) {
-		return false
-	}
-
-	for (let i = 0; i < str.length; i++) {
-		const code = str.charCodeAt(i)
-		if (!(code >= 48 && code <= 57) && !(code >= 65 && code <= 70)) {
-			return false
-		}
-	}
-
-	return true
-}
-
-const writeJid = (w: Writer, opts: CodingOpts, { domainType, device, user, server }: FullJid) => {
-	if (typeof device !== 'undefined') {
-		pushByte(w, opts.TAGS.AD_JID)
-		pushByte(w, domainType || 0)
-		pushByte(w, device || 0)
-		writeString(w, opts, user)
-	} else {
-		pushByte(w, opts.TAGS.JID_PAIR)
-		if (user.length) {
-			writeString(w, opts, user)
-		} else {
-			pushByte(w, opts.TAGS.LIST_EMPTY)
-		}
-
-		writeString(w, opts, server)
+	return {
+		tag: header,
+		attrs,
+		content: data
 	}
 }
 
-const writeString = (w: Writer, opts: CodingOpts, str?: string) => {
-	const { TAGS, TOKEN_MAP } = opts
+export const decodeDecompressedBinaryNode = (
+	buffer: Buffer,
+	opts: DecodeOpts,
+	indexRef: { index: number } = { index: 0 }
+): BinaryNode => readNode({ buffer, indexRef, opts })
 
-	if (str === undefined || str === null) {
-		pushByte(w, TAGS.LIST_EMPTY)
-		return
-	}
-
-	if (str === '') {
-		writeStringRaw(w, opts, str)
-		return
-	}
-
-	const tokenIndex = TOKEN_MAP[str]
-	if (tokenIndex) {
-		if (typeof tokenIndex.dict === 'number') {
-			pushByte(w, TAGS.DICTIONARY_0 + tokenIndex.dict)
-		}
-
-		pushByte(w, tokenIndex.index)
-	} else if (isNibble(str, TAGS.PACKED_MAX)) {
-		writePackedBytes(w, opts, str, 'nibble')
-	} else if (isHex(str, TAGS.PACKED_MAX)) {
-		writePackedBytes(w, opts, str, 'hex')
-	} else {
-		const decodedJid = jidDecode(str)
-		if (decodedJid) {
-			writeJid(w, opts, decodedJid)
-		} else {
-			writeStringRaw(w, opts, str)
-		}
-	}
+export const decodeBinaryNodeJS = async (buff: Buffer): Promise<BinaryNode> => {
+	const decompBuff = await decompressingIfRequired(buff)
+	return decodeDecompressedBinaryNode(decompBuff, constants)
 }
 
-const writeListStart = (w: Writer, opts: CodingOpts, listSize: number) => {
-	if (listSize === 0) {
-		pushByte(w, opts.TAGS.LIST_EMPTY)
-	} else if (listSize < 256) {
-		pushByte(w, opts.TAGS.LIST_8)
-		pushByte(w, listSize)
-	} else {
-		pushByte(w, opts.TAGS.LIST_16)
-		pushInt16(w, listSize)
-	}
-}
+rustCodec.setReference(frame => decodeDecompressedBinaryNode(frame.subarray(1), constants))
 
-const writeNode = (w: Writer, opts: CodingOpts, { tag, attrs, content }: BinaryNode) => {
-	if (!tag) {
-		throw new Error('Invalid node: tag cannot be undefined')
+export const decodeBinaryNode = async (buff: Buffer): Promise<BinaryNode> => {
+	const fast = rustCodec.tryDecode(buff)
+	if (fast) {
+		return fast
 	}
 
-	const validAttributes: string[] = []
-	if (attrs) {
-		for (const key of Object.keys(attrs)) {
-			if (typeof attrs[key] === 'string') {
-				validAttributes.push(key)
-			}
-		}
-	}
-
-	writeListStart(w, opts, 2 * validAttributes.length + 1 + (typeof content !== 'undefined' ? 1 : 0))
-	writeString(w, opts, tag)
-
-	for (const key of validAttributes) {
-		writeString(w, opts, key)
-		writeString(w, opts, attrs[key])
-	}
-
-	if (typeof content === 'string') {
-		writeString(w, opts, content)
-	} else if (Buffer.isBuffer(content) || content instanceof Uint8Array) {
-		writeByteLength(w, opts, content.length)
-		pushBytes(w, content as Uint8Array)
-	} else if (Array.isArray(content)) {
-		const validContent = content.filter(
-			item => item && (item.tag || Buffer.isBuffer(item) || item instanceof Uint8Array || typeof item === 'string')
-		)
-		writeListStart(w, opts, validContent.length)
-		for (const item of validContent) {
-			writeNode(w, opts, item)
-		}
-	} else if (typeof content !== 'undefined') {
-		throw new Error(`invalid children for header "${tag}": ${content} (${typeof content})`)
-	}
-}
-
-export const encodeBinaryNode = (
-	node: BinaryNode,
-	opts: Pick<BinaryNodeCodingOptions, 'TAGS' | 'TOKEN_MAP'> = constants,
-	buffer: number[] = [0]
-): Buffer => {
-	const w: Writer = {
-		buf: Buffer.allocUnsafe(Math.max(INITIAL_CAPACITY, buffer.length * 2)),
-		len: 0
-	}
-	pushBytes(w, buffer)
-	writeNode(w, opts, node)
-	return w.buf.subarray(0, w.len)
-}
+	return decodeBinaryNodeJS(buff)
+						   }
