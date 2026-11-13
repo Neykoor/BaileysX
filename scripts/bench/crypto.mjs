@@ -81,13 +81,13 @@ const chainSeed = randomBytes(32)
 
 const rows = [
 	bench('Curve.generateKeyPair', () => Curve.generateKeyPair().public.length, iterations),
-	bench('Curve.sharedKey (X25519 en JS)', () => Curve.sharedKey(alice.private, bob.public).length, iterations),
+	bench('Curve.sharedKey (libsignal)', () => Curve.sharedKey(alice.private, bob.public).length, iterations),
 	bench(
-		'X25519 nativo, claves cacheadas',
+		'X25519 directo, claves cacheadas',
 		() => diffieHellman({ privateKey: alicePrivateObject, publicKey: bobPublicObject }).length,
 		iterations
 	),
-	bench('X25519 nativo, importando claves', () => nativeShared(alice.private, bob.public).length, iterations),
+	bench('X25519 directo, importando claves', () => nativeShared(alice.private, bob.public).length, iterations),
 	bench('Curve.sign (XEdDSA)', () => Curve.sign(alice.private, signingPayload).length, iterations),
 	bench('Curve.verify (XEdDSA)', () => (Curve.verify(alice.public, signingPayload, signature) ? 1 : 0), iterations),
 	bench(
@@ -107,6 +107,6 @@ const rows = [
 ]
 
 console.log(`node ${process.version} | iteraciones base ${iterations} | rondas ${rounds}`)
-console.log(`X25519 JS y nativo coinciden: ${sameShared}`)
+console.log(`Curve.sharedKey y crypto.diffieHellman coinciden: ${sameShared}`)
 console.table(rows)
 console.log(`control ${guard}`)
