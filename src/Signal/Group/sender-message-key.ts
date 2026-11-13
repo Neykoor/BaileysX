@@ -2,13 +2,21 @@ import { deriveSecrets } from 'libsignal/lib/crypto.js'
 
 export class SenderMessageKey {
 	private readonly iteration: number
-	private readonly iv: Uint8Array
-	private readonly cipherKey: Uint8Array
 	private readonly seed: Uint8Array
+	private iv: Uint8Array | undefined
+	private cipherKey: Uint8Array | undefined
 
 	constructor(iteration: number, seed: Uint8Array) {
-		const seedBuffer = Buffer.from(seed)
-		const derivative = deriveSecrets(seedBuffer, Buffer.alloc(32), Buffer.from('WhisperGroup'))
+		this.iteration = iteration
+		this.seed = Buffer.from(seed)
+	}
+
+	private derive(): void {
+		if (this.iv && this.cipherKey) {
+			return
+		}
+
+		const derivative = deriveSecrets(Buffer.from(this.seed), Buffer.alloc(32), Buffer.from('WhisperGroup'))
 		const first = derivative[0]
 		const second = derivative[1]
 		if (!first || !second) {
@@ -21,8 +29,6 @@ export class SenderMessageKey {
 
 		this.iv = Buffer.from(first.slice(0, 16))
 		this.cipherKey = Buffer.from(keys.buffer)
-		this.iteration = iteration
-		this.seed = seedBuffer
 	}
 
 	public getIteration(): number {
@@ -30,11 +36,13 @@ export class SenderMessageKey {
 	}
 
 	public getIv(): Uint8Array {
-		return this.iv
+		this.derive()
+		return this.iv as Uint8Array
 	}
 
 	public getCipherKey(): Uint8Array {
-		return this.cipherKey
+		this.derive()
+		return this.cipherKey as Uint8Array
 	}
 
 	public getSeed(): Uint8Array {
