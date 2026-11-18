@@ -16,10 +16,7 @@ import {
 	S_WHATSAPP_NET
 } from '../WABinary'
 import { makeGroupsSocket } from './groups'
-import {
-	executeWMexQuery as genericExecuteWMexQuery,
-	executeWMexQueryIgnoreResponse as genericExecuteWMexQueryIgnoreResponse
-} from './mex'
+import { executeWMexQueryIgnoreResponse as genericExecuteWMexQueryIgnoreResponse, makeMexWithFallback } from './mex'
 
 const parseNewsletterCreateResponse = (response: NewsletterCreateResponse): NewsletterMetadata => {
 	const { id, thread_metadata: thread, viewer_metadata: viewer, state } = response
@@ -73,8 +70,10 @@ export const makeNewsletterSocket = (config: SocketConfig) => {
 	const { authState, ev, query, generateMessageTag, signalRepository } = sock
 	const { logger, newsletterMetadataCacheTtlMs, newsletterMetadataCacheMaxSize } = config
 
+	const mexWithFallback = makeMexWithFallback({ query, generateMessageTag, logger })
+
 	const executeWMexQuery = <T>(variables: Record<string, unknown>, queryId: string, dataPath: string): Promise<T> => {
-		return genericExecuteWMexQuery<T>(variables, queryId, dataPath, query, generateMessageTag)
+		return mexWithFallback.executeWMexQuery<T>(variables, queryId, dataPath)
 	}
 
 	const executeWMexQueryIgnoreResponse = (variables: Record<string, unknown>, queryId: string): Promise<void> => {
@@ -530,4 +529,5 @@ export const extractNewsletterMetadata = (node: any, isCreate?: boolean): Newsle
 
 export type NewsletterSocket = ReturnType<typeof makeNewsletterSocket>
 
-		
+
+						
