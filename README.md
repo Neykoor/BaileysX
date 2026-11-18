@@ -4,13 +4,13 @@
 
 <img src="./assets/banner.png" alt="BaileysX banner" width="100%" />
 
-**Librería de WebSockets para WhatsApp Web, con [`libsignal-node-ts`](https://github.com/Neykoor/libsignal-node) como backend de Signal Protocol**
+**Librería de WebSockets para WhatsApp Web, con [`@neykoor/libsignal-node`](https://github.com/Neykoor/libsignal-node) como backend de Signal Protocol**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![ESM](https://img.shields.io/badge/Module-ESM-yellow)](https://nodejs.org/api/esm.html)
 [![Node](https://img.shields.io/badge/Node-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](./LICENSE)
-[![Version](https://img.shields.io/badge/Version-8.0.2--rc18-success)](https://www.npmjs.com/package/@neykoor/baileys)
+[![Version](https://img.shields.io/badge/Version-8.0.7--rc18-success)](https://www.npmjs.com/package/@neykoor/baileys)
 
 </div>
 
@@ -45,6 +45,16 @@ npm install audio-decode link-preview-js
 ```
 
 `sharp`, `jimp`, `@napi-rs/image`, `audio-decode`, `link-preview-js` e `infinitysqlite` son `peerDependencies` opcionales. Si faltan, solo falla la función que las necesita, no la instalación ni el build.
+
+### ffmpeg
+
+Las notas de voz (`transcodeAudioToOpus`), las miniaturas de video y algunos stickers necesitan el binario `ffmpeg`. Se resuelve en este orden: `setFfmpegPath('/ruta/a/ffmpeg')`, la variable `FFMPEG_PATH`, los paquetes `ffmpeg-static` o `@ffmpeg-installer/ffmpeg` si están instalados, y por último el `ffmpeg` del sistema. Si no hay ninguno, el error indica cómo instalarlo.
+
+```ts
+import { setFfmpegPath } from '@neykoor/baileys'
+
+setFfmpegPath('/usr/bin/ffmpeg')
+```
 
 ## Uso básico
 
@@ -172,7 +182,7 @@ await sock.sendMessage(jid, {
 
 El header acepta `text` o media (`image`, `video`, `document`) con `caption`. Si no se pasa ninguno, se lanza un error.
 
-## Capacidades nuevas (8.0.2-rc18)
+## Capacidades nuevas (8.0.7-rc18)
 
 Todas las APIs son opcionales y compatibles con el uso existente de `makeWASocket`.
 
@@ -214,6 +224,16 @@ sock.mediaCache.clear()
 ```
 
 Es un LRU con deduplicación de descargas concurrentes. Se configura con `mediaDownloadCache: { maxItems, maxBytes }` en `makeWASocket`.
+
+Para guardar directo a disco sin cargar todo el archivo en memoria:
+
+```ts
+import { downloadMediaMessageToFile } from '@neykoor/baileys'
+
+await downloadMediaMessageToFile(message, './media/archivo.mp4', {})
+```
+
+Si la descarga falla, el archivo parcial se borra.
 
 ### Scheduler persistente
 
@@ -405,9 +425,23 @@ baileysx send    --jid 123@s.whatsapp.net --text "hola"
 
 Variables de entorno: `BAILEYSX_GATEWAY_URL` y `BAILEYSX_TOKEN`.
 
+## Variables de entorno de la librería
+
+| Variable | Efecto |
+|---|---|
+| `BAILEYSX_NO_BANNER` | Oculta el banner de inicio |
+| `BAILEYSX_VERBOSE` | Desactiva el filtro de mensajes de consola |
+| `BAILEYS_RUST` | Activa o desactiva todas las áreas Rust (`1`/`0`). Por defecto está apagado |
+| `BAILEYS_RUST_CODEC` | Activa o desactiva solo el codec Rust, con prioridad sobre `BAILEYS_RUST` |
+| `FFMPEG_PATH` | Ruta al binario de ffmpeg |
+
+## Newsletters y IDs de consulta
+
+Las consultas de newsletter (metadata, creación, suscripciones, cantidad de admins) pasan por `makeMexWithFallback`. Si el ID de consulta principal falla porque WhatsApp lo cambió, prueba IDs alternativos y recuerda el que funcionó mientras el proceso siga vivo. Un error de autenticación (401, 403, 419) nunca se reintenta.
+
 ## Compatibilidad con libsignal
 
-`BaileysX` consume [`libsignal-node-ts`](https://www.npmjs.com/package/@neykoor/libsignal-node), el port 100% TypeScript de `libsignal-node`.
+`BaileysX` consume [`@neykoor/libsignal-node`](https://www.npmjs.com/package/@neykoor/libsignal-node), el port 100% TypeScript de `libsignal-node`.
 
 Los deep imports apuntan al build compilado que existe una vez instalado el paquete:
 
